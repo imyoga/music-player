@@ -1,0 +1,21 @@
+[Unit]
+Description=App1 - Home Sync Radio (Port 45001)
+Documentation=https://github.com/your-repo/ym-apps
+After=network.target
+
+[Service]
+Type=simple
+User=ymoradiya
+WorkingDirectory=/home/ymoradiya/00-developments/ym-apps/app1-45001-home-sync-radio/Backend
+Environment=NODE_ENV=production
+Environment=PORT=45001
+Environment=PATH=/home/ymoradiya/.nvm/versions/node/v22.14.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/ymoradiya/.nvm/versions/node/v22.14.0/bin/yarn dev
+Restart=on-failure
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=app1-45001-home-sync-radio
+
+[Install]
+WantedBy=multi-user.target
