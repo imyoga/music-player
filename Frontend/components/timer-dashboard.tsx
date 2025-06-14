@@ -244,11 +244,14 @@ export default function TimerDashboard() {
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold text-gray-800 dark:text-white flex items-center justify-center gap-2">
             <TimerIcon className="w-8 h-8 text-blue-600" />
-            Timer Dashboard
+            Radio Control Center
           </h1>
-          <p className="text-gray-600 dark:text-gray-300">Real-time timer with 0.1 second precision control</p>
-          <div className="flex justify-center">
+          <p className="text-gray-600 dark:text-gray-300">Master timer controlling synchronized music players</p>
+          <div className="flex justify-center gap-2">
             {getConnectionStatus()}
+            <Badge variant="outline" className="bg-purple-100 dark:bg-purple-900">
+              🎵 Music Sync Active
+            </Badge>
           </div>
         </div>
 
@@ -295,7 +298,7 @@ export default function TimerDashboard() {
             <div className="space-y-4">
               {/* Duration Input */}
               <div className="flex flex-col space-y-2">
-                <Label htmlFor="duration">Timer Duration (seconds)</Label>
+                <Label htmlFor="duration">Music Playback Duration (seconds)</Label>
                 <div className="flex gap-2">
                   <Input
                     id="duration"
@@ -313,9 +316,12 @@ export default function TimerDashboard() {
                     className="bg-green-600 hover:bg-green-700"
                   >
                     <Play className="w-4 h-4 mr-2" />
-                    Start
+                    Start Music
                   </Button>
                 </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  ⚡ All connected music players will sync to this timer
+                </p>
               </div>
 
               {/* Action Buttons */}
@@ -326,7 +332,7 @@ export default function TimerDashboard() {
                   variant="secondary"
                 >
                   <Pause className="w-4 h-4 mr-2" />
-                  Pause
+                  Pause Music
                 </Button>
                 
                 <Button 
@@ -335,7 +341,7 @@ export default function TimerDashboard() {
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   <RotateCcw className="w-4 h-4 mr-2" />
-                  Continue
+                  Resume Music
                 </Button>
                 
                 <Button 
@@ -345,7 +351,7 @@ export default function TimerDashboard() {
                   className="sm:col-span-1 col-span-2"
                 >
                   <Square className="w-4 h-4 mr-2" />
-                  Stop
+                  Stop Music
                 </Button>
               </div>
             </div>
