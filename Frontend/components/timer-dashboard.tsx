@@ -61,43 +61,99 @@ export default function TimerDashboard() {
 
   // Connect to SSE stream for real-time updates
   useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+    
     const connectToStream = () => {
       try {
-        const eventSource = new EventSource(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM));
+        const streamUrl = getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM);
+        console.log('🔗 Attempting to connect to SSE stream at:', streamUrl);
+        console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
+        console.log('🔧 BASE_URL:', API_CONFIG.BASE_URL);
+        
+        // Clear any existing connection first
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
+        
+        const eventSource = new EventSource(streamUrl);
         eventSourceRef.current = eventSource;
 
+        // Set a timeout to fallback to polling if EventSource fails
+        const connectionTimeout = setTimeout(() => {
+          if (!isConnected) {
+            console.warn('⚠️ EventSource connection timeout, falling back to polling...');
+            eventSource.close();
+            startPolling();
+          }
+        }, 5000); // 5 second timeout
+
         eventSource.onopen = () => {
+          clearTimeout(connectionTimeout);
           setIsConnected(true);
-          console.log('Connected to timer stream');
+          console.log('✅ Connected to timer stream');
         };
 
         eventSource.onmessage = event => {
           try {
             const data = JSON.parse(event.data);
-            // console.log('Timer update received:', data)
+            console.log('📨 Timer update received:', data);
             setTimerState(data);
           } catch (error) {
-            console.error('Failed to parse timer data:', error);
+            console.error('❌ Failed to parse timer data:', error);
           }
         };
 
         eventSource.onerror = error => {
-          console.error('SSE connection error:', error);
-          console.log('EventSource readyState:', eventSource.readyState);
+          clearTimeout(connectionTimeout);
+          console.error('❌ SSE connection error:', error);
+          console.log('📊 EventSource readyState:', eventSource.readyState);
+          console.log('📊 EventSource CONNECTING:', EventSource.CONNECTING);
+          console.log('📊 EventSource OPEN:', EventSource.OPEN);
+          console.log('📊 EventSource CLOSED:', EventSource.CLOSED);
           setIsConnected(false);
 
-          // Reconnect after 3 seconds
-          setTimeout(() => {
-            if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
-              console.log('Attempting to reconnect to timer stream...');
-              connectToStream();
-            }
-          }, 3000);
+          // Fallback to polling immediately on error
+          if (eventSource.readyState === EventSource.CLOSED) {
+            console.log('🔄 EventSource closed, falling back to polling...');
+            startPolling();
+          } else {
+            // Reconnect after 3 seconds if not closed
+            setTimeout(() => {
+              if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
+                console.log('🔄 Attempting to reconnect to timer stream...');
+                connectToStream();
+              }
+            }, 3000);
+          }
         };
       } catch (error) {
-        console.error('Failed to connect to stream:', error);
+        console.error('❌ Failed to connect to stream:', error);
         setIsConnected(false);
+        startPolling();
       }
+    };
+
+    // Fallback polling mechanism
+    const startPolling = () => {
+      console.log('🔁 Starting polling fallback...');
+      setIsConnected(false); // Mark as not connected to SSE
+      
+      // Clear any existing interval
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      
+      // Poll every 1 second
+      pollInterval = setInterval(async () => {
+        try {
+          const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STATUS));
+          const data = await response.json();
+          setTimerState(data.timer);
+        } catch (error) {
+          console.error('❌ Polling failed:', error);
+        }
+      }, 1000);
     };
 
     connectToStream();
@@ -106,8 +162,11 @@ export default function TimerDashboard() {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
     };
-  }, []);
+  }, [isConnected]);
 
   // API call helper
   const apiCall = async (

@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
 	// Backend API base URL - only for development, empty for production
-	BASE_URL: process.env.NODE_ENV === 'development' ? 'http://localhost:45001' : '',
+	BASE_URL: process.env.NODE_ENV === 'development' ? 'http://localhost:45001' : 'https://ym-apps.live/home-sync-radio',
 
 	// API endpoints
 	ENDPOINTS: {

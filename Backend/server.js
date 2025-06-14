@@ -380,21 +380,51 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-app.listen(PORT, () => {
-  // add timestamp of system time along with system time zone
-  console.log(`Timestamp: ${new Date()}`);
-	console.log(`Timer API Server is running on port ${PORT}`);
-  console.log(`Timer with 1 second accuracy for smooth music sync`);
-  console.log(`Available endpoints:`);
-  console.log(`  POST /api/timer/start       - Start a new timer`);
-  console.log(`  POST /api/timer/stop        - Stop the timer`);
-  console.log(`  POST /api/timer/pause       - Pause the timer`);
-  console.log(`  POST /api/timer/continue    - Resume the timer`);
-  console.log(
-    `  POST /api/timer/set-elapsed - Set elapsed time (adjust remaining time)`
-  );
-  console.log(`  GET  /api/timer/status      - Get timer status`);
-  console.log(
-    `  GET  /api/timer/stream      - Real-time timer updates (SSE, 1s)`
-  );
+// Create server instance
+const server = app.listen(PORT);
+
+// Handle port binding errors (set up before success callback to ensure errors show first)
+server.on('error', (err) => {
+  console.error('\n🚨 SERVER ERROR 🚨');
+  console.error('=' * 50);
+  
+  if (err.code === 'EADDRINUSE') {
+    console.error(`❌ FATAL: Port ${PORT} is already in use!`);
+    console.error(`❌ Cannot start server - port conflict detected`);
+    console.error(`\n💡 Troubleshooting steps:`);
+    console.error(`   1. Check what's using the port: lsof -i :${PORT}`);
+    console.error(`   2. Kill the process: kill -9 <PID>`);
+    console.error(`   3. Or restart your system to free up ports`);
+  } else if (err.code === 'EACCES') {
+    console.error(`❌ FATAL: Permission denied to bind to port ${PORT}!`);
+    console.error(`❌ Insufficient privileges to use this port`);
+    console.error(`\n💡 Solutions:`);
+    console.error(`   1. Run with elevated privileges: sudo yarn dev`);
+    console.error(`   2. Use a port number above 1024`);
+  } else {
+    console.error(`❌ FATAL: Unexpected server error occurred`);
+    console.error(`❌ Error details:`, err.message);
+    console.error(`❌ Error code:`, err.code);
+  }
+  
+  console.error('\n❌ Server startup FAILED - exiting...\n');
+  process.exit(1);
+});
+
+// Success callback (only runs if no errors)
+server.on('listening', () => {
+  console.log('\n🚀 SERVER STARTED SUCCESSFULLY 🚀');
+  console.log('=' * 50);
+  console.log(`⏰ Timestamp: ${new Date()}`);
+  console.log(`🌐 Timer API Server is running on port ${PORT}`);
+  console.log(`🎵 Timer with 1 second accuracy for smooth music sync`);
+  console.log(`\n📡 Available endpoints:`);
+  console.log(`   POST /api/timer/start       - Start a new timer`);
+  console.log(`   POST /api/timer/stop        - Stop the timer`);
+  console.log(`   POST /api/timer/pause       - Pause the timer`);
+  console.log(`   POST /api/timer/continue    - Resume the timer`);
+  console.log(`   POST /api/timer/set-elapsed - Set elapsed time (adjust remaining time)`);
+  console.log(`   GET  /api/timer/status      - Get timer status`);
+  console.log(`   GET  /api/timer/stream      - Real-time timer updates (SSE, 1s)`);
+  console.log(`\n✅ Server ready to accept connections!\n`);
 });
