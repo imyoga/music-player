@@ -381,7 +381,9 @@ process.on('SIGINT', () => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Timer API Server is running on port ${PORT}`);
+  // add timestamp of system time along with system time zone
+  console.log(`Timestamp: ${new Date()}`);
+	console.log(`Timer API Server is running on port ${PORT}`);
   console.log(`Timer with 1 second accuracy for smooth music sync`);
   console.log(`Available endpoints:`);
   console.log(`  POST /api/timer/start       - Start a new timer`);

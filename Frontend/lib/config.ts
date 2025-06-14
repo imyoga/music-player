@@ -1,7 +1,7 @@
 // API Configuration
 export const API_CONFIG = {
-	// Backend API base URL - hardcoded for local development
-	BASE_URL: 'http://localhost:45001',
+	// Backend API base URL - only for development, empty for production
+	BASE_URL: process.env.NODE_ENV === 'development' ? 'http://localhost:45001' : '',
 
 	// API endpoints
 	ENDPOINTS: {
