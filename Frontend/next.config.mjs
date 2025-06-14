@@ -11,7 +11,7 @@ const nextConfig = {
   },
   output: 'export',
   trailingSlash: true,
-  distDir: 'out',
+  distDir: '../Backend/public',
 };
 
 export default nextConfig;
