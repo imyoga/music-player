@@ -51,6 +51,7 @@ export default function MusicPlayer() {
     precision: 0.1,
   });
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionMethod, setConnectionMethod] = useState<'stream' | 'polling' | 'none'>('none');
   const [lastSyncTime, setLastSyncTime] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -62,14 +63,28 @@ export default function MusicPlayer() {
 
   // Connect to timer SSE stream for synchronization  
   useEffect(() => {
+    let pollInterval: NodeJS.Timeout | null = null;
+
     const connectToTimerStream = () => {
       try {
+        console.log('🔗 Music Player: Attempting SSE connection...');
         const eventSource = new EventSource(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM));
         eventSourceRef.current = eventSource;
 
+        // Set a timeout to fallback to polling if EventSource fails
+        const connectionTimeout = setTimeout(() => {
+          if (!isConnected) {
+            console.warn('⚠️ Music Player: SSE timeout, falling back to polling...');
+            eventSource.close();
+            startPolling();
+          }
+        }, 5000);
+
         eventSource.onopen = () => {
+          clearTimeout(connectionTimeout);
           setIsConnected(true);
-          console.log('Connected to timer stream for music sync');
+          setConnectionMethod('stream');
+          console.log('✅ Music Player: Connected to timer stream');
         };
 
         eventSource.onmessage = event => {
@@ -78,25 +93,59 @@ export default function MusicPlayer() {
             setTimerState(data);
             setLastSyncTime(Date.now());
           } catch (error) {
-            console.error('Failed to parse timer data:', error);
+            console.error('❌ Music Player: Failed to parse timer data:', error);
           }
         };
 
         eventSource.onerror = error => {
-          console.error('Timer SSE connection error:', error);
+          clearTimeout(connectionTimeout);
+          console.error('❌ Music Player: SSE connection error:', error);
           setIsConnected(false);
+          setConnectionMethod('none');
 
-          // Reconnect after 3 seconds
-          setTimeout(() => {
-            if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
-              connectToTimerStream();
-            }
-          }, 3000);
+          // Fallback to polling immediately on error
+          if (eventSource.readyState === EventSource.CLOSED) {
+            console.log('🔄 Music Player: SSE closed, falling back to polling...');
+            startPolling();
+          } else {
+            // Reconnect after 3 seconds if not closed
+            setTimeout(() => {
+              if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
+                connectToTimerStream();
+              }
+            }, 3000);
+          }
         };
       } catch (error) {
-        console.error('Failed to connect to timer stream:', error);
+        console.error('❌ Music Player: Failed to connect to stream:', error);
         setIsConnected(false);
+        setConnectionMethod('none');
+        startPolling();
       }
+    };
+
+    // Fallback polling mechanism
+    const startPolling = () => {
+      console.log('🔁 Music Player: Starting polling fallback...');
+      setIsConnected(false);
+      setConnectionMethod('polling');
+      
+      // Clear any existing interval
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      
+      // Poll every 1 second
+      pollInterval = setInterval(async () => {
+        try {
+          const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STATUS));
+          const data = await response.json();
+          setTimerState(data.timer);
+          setLastSyncTime(Date.now());
+        } catch (error) {
+          console.error('❌ Music Player: Polling failed:', error);
+        }
+      }, 1000);
     };
 
     connectToTimerStream();
@@ -108,8 +157,11 @@ export default function MusicPlayer() {
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
       }
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
     };
-  }, []);
+  }, [isConnected]);
 
   // Sync audio playback with timer state
   useEffect(() => {
@@ -369,17 +421,28 @@ export default function MusicPlayer() {
   };
 
   const getConnectionStatus = () => {
-    return isConnected ? (
-      <Badge variant='default' className='bg-green-500'>
-        <Wifi className='w-3 h-3 mr-1' />
-        Connected
-      </Badge>
-    ) : (
-      <Badge variant='destructive'>
-        <WifiOff className='w-3 h-3 mr-1' />
-        Disconnected
-      </Badge>
-    );
+    if (connectionMethod === 'stream') {
+      return (
+        <Badge variant='default' className='bg-green-500'>
+          <Wifi className='w-3 h-3 mr-1' />
+          SSE Stream
+        </Badge>
+      );
+    } else if (connectionMethod === 'polling') {
+      return (
+        <Badge variant='secondary' className='bg-orange-500 text-white'>
+          <Radio className='w-3 h-3 mr-1' />
+          Polling Mode
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant='destructive'>
+          <WifiOff className='w-3 h-3 mr-1' />
+          Disconnected
+        </Badge>
+      );
+    }
   };
 
   const getPlaybackStatus = () => {
@@ -583,6 +646,50 @@ export default function MusicPlayer() {
             </CardContent>
           </Card>
         )}
+
+        {/* Connection Status */}
+        <Card className='bg-white/10 backdrop-blur border-white/20'>
+          <CardContent className='p-4'>
+            <h3 className='text-sm font-semibold text-white mb-3 flex items-center gap-2'>
+              <Radio className='w-4 h-4' />
+              Connection Status
+            </h3>
+            <div className='grid grid-cols-1 gap-3 text-xs text-purple-200'>
+              <div className='flex items-center justify-between p-2 bg-white/5 rounded'>
+                <span className='font-medium'>Connection Type:</span>
+                <div className='flex items-center gap-2'>
+                  {getConnectionStatus()}
+                </div>
+              </div>
+              <div className='flex items-center justify-between p-2 bg-white/5 rounded'>
+                <span className='font-medium'>Data Method:</span>
+                <span className='font-mono'>
+                  {connectionMethod === 'stream' 
+                    ? 'Server-Sent Events' 
+                    : connectionMethod === 'polling' 
+                    ? 'HTTP Polling (1s)'
+                    : 'Disconnected'}
+                </span>
+              </div>
+              <div className='flex items-center justify-between p-2 bg-white/5 rounded'>
+                <span className='font-medium'>Performance:</span>
+                <span className={`font-mono ${
+                  connectionMethod === 'stream' ? 'text-green-300' : 
+                  connectionMethod === 'polling' ? 'text-orange-300' : 'text-red-300'
+                }`}>
+                  {connectionMethod === 'stream' ? '⚡ Real-time' : 
+                   connectionMethod === 'polling' ? '🔄 1s Delay' : '❌ Offline'}
+                </span>
+              </div>
+              <div className='flex items-center justify-between p-2 bg-white/5 rounded'>
+                <span className='font-medium'>Last Update:</span>
+                <span className='font-mono text-xs'>
+                  {lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString() : '--:--:--'}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Timer Status Display */}
         <Card className='bg-white/10 backdrop-blur border-white/20'>

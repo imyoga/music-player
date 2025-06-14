@@ -55,6 +55,7 @@ export default function TimerDashboard() {
   const [inputDuration, setInputDuration] = useState('10.0');
   const [inputElapsedTime, setInputElapsedTime] = useState('0');
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionMethod, setConnectionMethod] = useState<'stream' | 'polling' | 'none'>('none');
   const [isLoading, setIsLoading] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const { toast } = useToast();
@@ -91,13 +92,14 @@ export default function TimerDashboard() {
         eventSource.onopen = () => {
           clearTimeout(connectionTimeout);
           setIsConnected(true);
+          setConnectionMethod('stream');
           console.log('✅ Connected to timer stream');
         };
 
         eventSource.onmessage = event => {
           try {
             const data = JSON.parse(event.data);
-            console.log('📨 Timer update received:', data);
+            // console.log('📨 Timer update received:', data);
             setTimerState(data);
           } catch (error) {
             console.error('❌ Failed to parse timer data:', error);
@@ -112,6 +114,7 @@ export default function TimerDashboard() {
           console.log('📊 EventSource OPEN:', EventSource.OPEN);
           console.log('📊 EventSource CLOSED:', EventSource.CLOSED);
           setIsConnected(false);
+          setConnectionMethod('none');
 
           // Fallback to polling immediately on error
           if (eventSource.readyState === EventSource.CLOSED) {
@@ -130,6 +133,7 @@ export default function TimerDashboard() {
       } catch (error) {
         console.error('❌ Failed to connect to stream:', error);
         setIsConnected(false);
+        setConnectionMethod('none');
         startPolling();
       }
     };
@@ -138,6 +142,7 @@ export default function TimerDashboard() {
     const startPolling = () => {
       console.log('🔁 Starting polling fallback...');
       setIsConnected(false); // Mark as not connected to SSE
+      setConnectionMethod('polling');
       
       // Clear any existing interval
       if (pollInterval) {
@@ -358,17 +363,28 @@ export default function TimerDashboard() {
   };
 
   const getConnectionStatus = () => {
-    return isConnected ? (
-      <Badge variant='default' className='bg-blue-500'>
-        <Activity className='w-3 h-3 mr-1' />
-        Connected
-      </Badge>
-    ) : (
-      <Badge variant='destructive'>
-        <Square className='w-3 h-3 mr-1' />
-        Disconnected
-      </Badge>
-    );
+    if (connectionMethod === 'stream') {
+      return (
+        <Badge variant='default' className='bg-green-500'>
+          <Zap className='w-3 h-3 mr-1' />
+          SSE Stream
+        </Badge>
+      );
+    } else if (connectionMethod === 'polling') {
+      return (
+        <Badge variant='secondary' className='bg-orange-500 text-white'>
+          <Activity className='w-3 h-3 mr-1' />
+          Polling Fallback
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant='destructive'>
+          <Square className='w-3 h-3 mr-1' />
+          Disconnected
+        </Badge>
+      );
+    }
   };
 
   return (
@@ -625,6 +641,61 @@ export default function TimerDashboard() {
           </Card>
         </div>
 
+        {/* Connection Status Details */}
+        <Card className='bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'>
+          <CardHeader>
+            <CardTitle className='text-sm flex items-center gap-2'>
+              <Activity className='w-4 h-4' />
+              Connection Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-4 text-sm'>
+              <div className='flex flex-col items-center p-3 bg-white dark:bg-gray-800 rounded-lg border'>
+                <span className='font-medium text-gray-600 dark:text-gray-400 mb-1'>Connection Type</span>
+                <div className='flex items-center gap-2'>
+                  {getConnectionStatus()}
+                </div>
+                <p className='text-xs text-gray-500 mt-1 text-center'>
+                  {connectionMethod === 'stream' 
+                    ? 'Real-time Server-Sent Events' 
+                    : connectionMethod === 'polling' 
+                    ? 'HTTP Polling Fallback (1s interval)'
+                    : 'No connection established'}
+                </p>
+              </div>
+              <div className='flex flex-col items-center p-3 bg-white dark:bg-gray-800 rounded-lg border'>
+                <span className='font-medium text-gray-600 dark:text-gray-400 mb-1'>Performance</span>
+                <div className='text-lg font-bold'>
+                  {connectionMethod === 'stream' ? '⚡ Real-time' : 
+                   connectionMethod === 'polling' ? '🔄 1s Delay' : '❌ Offline'}
+                </div>
+                <p className='text-xs text-gray-500 mt-1 text-center'>
+                  {connectionMethod === 'stream' 
+                    ? 'Instant updates via SSE' 
+                    : connectionMethod === 'polling' 
+                    ? 'Updates every second'
+                    : 'No timer updates'}
+                </p>
+              </div>
+              <div className='flex flex-col items-center p-3 bg-white dark:bg-gray-800 rounded-lg border'>
+                <span className='font-medium text-gray-600 dark:text-gray-400 mb-1'>Browser Support</span>
+                <div className='text-lg font-bold'>
+                  {connectionMethod === 'stream' ? '✅ Full' : 
+                   connectionMethod === 'polling' ? '⚠️ Limited' : '❌ None'}
+                </div>
+                <p className='text-xs text-gray-500 mt-1 text-center'>
+                  {connectionMethod === 'stream' 
+                    ? 'SSE supported' 
+                    : connectionMethod === 'polling' 
+                    ? 'SSE blocked, using fallback'
+                    : 'Connection failed'}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Debug Info */}
         <Card className='bg-gray-50 dark:bg-gray-800/50'>
           <CardHeader>
@@ -645,8 +716,8 @@ export default function TimerDashboard() {
                 {timerState.isPaused.toString()}
               </div>
               <div>
-                <span className='font-medium'>Connection:</span>{' '}
-                {isConnected ? 'Active' : 'Inactive'}
+                <span className='font-medium'>Connection Method:</span>{' '}
+                {connectionMethod}
               </div>
             </div>
           </CardContent>
