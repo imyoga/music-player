@@ -123,29 +123,77 @@ export default function MusicPlayer() {
 			// Timer is running - play audio and sync position
 			if (!isPlaying) {
 				setIsPlaying(true)
-				audio.play().catch(console.error)
+				// Use a promise-based approach with proper error handling
+				const playPromise = audio.play()
+				if (playPromise !== undefined) {
+					playPromise
+						.then(() => {
+							// Audio started successfully
+							console.log('Audio playback started')
+						})
+						.catch((error: DOMException) => {
+							// Handle play interruption gracefully
+							if (error.name === 'AbortError') {
+								console.log(
+									'Play request was interrupted, will retry on next sync'
+								)
+							} else if (error.name === 'NotAllowedError') {
+								console.log(
+									'Autoplay blocked by browser, user interaction required'
+								)
+							} else {
+								console.error('Audio play error:', error)
+							}
+							setIsPlaying(false)
+						})
+				}
 			}
 
 			// Sync audio position with timer elapsed time
 			const timeDiff = Math.abs(audio.currentTime - elapsedTime)
 			if (timeDiff > 0.5) {
 				// Only sync if difference is significant (0.5s)
-				audio.currentTime = Math.min(elapsedTime, audio.duration || 0)
-				console.log(`Syncing audio to timer: ${elapsedTime.toFixed(1)}s`)
+				// Check if audio is ready for seeking
+				if (audio.readyState >= 2) {
+					// HAVE_CURRENT_DATA or higher
+					try {
+						audio.currentTime = Math.min(elapsedTime, audio.duration || 0)
+						console.log(`Syncing audio to timer: ${elapsedTime.toFixed(1)}s`)
+					} catch (error: unknown) {
+						console.log(
+							'Seek error (will retry):',
+							error instanceof Error ? error.message : String(error)
+						)
+					}
+				}
 			}
 		} else if (timerState.isPaused) {
 			// Timer is paused - pause audio
 			if (isPlaying) {
 				setIsPlaying(false)
-				audio.pause()
+				try {
+					audio.pause()
+				} catch (error: unknown) {
+					console.log(
+						'Pause error:',
+						error instanceof Error ? error.message : String(error)
+					)
+				}
 			}
 		} else {
 			// Timer is stopped - stop audio and reset
 			if (isPlaying) {
 				setIsPlaying(false)
-				audio.pause()
-				audio.currentTime = 0
-				setCurrentTime(0)
+				try {
+					audio.pause()
+					audio.currentTime = 0
+					setCurrentTime(0)
+				} catch (error: unknown) {
+					console.log(
+						'Stop error:',
+						error instanceof Error ? error.message : String(error)
+					)
+				}
 			}
 		}
 	}, [timerState, currentTrack, isConnected])
@@ -180,28 +228,62 @@ export default function MusicPlayer() {
 			audio.currentTime = 0
 		}
 
-		const handleError = () => {
+		const handleError = (event: Event) => {
 			setIsLoading(false)
 			setIsPlaying(false)
-			console.error('Audio loading error')
+			const target = event.target as HTMLAudioElement
+			console.log(
+				'Audio error (non-critical):',
+				target?.error?.message || 'Unknown audio error'
+			)
+		}
+
+		const handleLoadedData = () => {
+			// Audio data is loaded and ready for playback
+			setIsLoading(false)
+		}
+
+		const handleWaiting = () => {
+			// Audio is waiting for more data
+			console.log('Audio buffering...')
+		}
+
+		const handlePlaying = () => {
+			// Audio has started playing
+			setIsPlaying(true)
+		}
+
+		const handlePause = () => {
+			// Audio has been paused
+			if (!timerState.isRunning || timerState.isPaused) {
+				setIsPlaying(false)
+			}
 		}
 
 		audio.addEventListener('timeupdate', handleTimeUpdate)
 		audio.addEventListener('loadedmetadata', handleLoadedMetadata)
+		audio.addEventListener('loadeddata', handleLoadedData)
 		audio.addEventListener('canplay', handleCanPlay)
 		audio.addEventListener('loadstart', handleLoadStart)
 		audio.addEventListener('ended', handleEnded)
 		audio.addEventListener('error', handleError)
+		audio.addEventListener('waiting', handleWaiting)
+		audio.addEventListener('playing', handlePlaying)
+		audio.addEventListener('pause', handlePause)
 
 		return () => {
 			audio.removeEventListener('timeupdate', handleTimeUpdate)
 			audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+			audio.removeEventListener('loadeddata', handleLoadedData)
 			audio.removeEventListener('canplay', handleCanPlay)
 			audio.removeEventListener('loadstart', handleLoadStart)
 			audio.removeEventListener('ended', handleEnded)
 			audio.removeEventListener('error', handleError)
+			audio.removeEventListener('waiting', handleWaiting)
+			audio.removeEventListener('playing', handlePlaying)
+			audio.removeEventListener('pause', handlePause)
 		}
-	}, [currentTrackIndex])
+	}, [currentTrackIndex, timerState.isRunning, timerState.isPaused])
 
 	// Load new track when currentTrackIndex changes
 	useEffect(() => {
@@ -212,9 +294,17 @@ export default function MusicPlayer() {
 		setCurrentTime(0)
 		setDuration(0)
 
-		audio.src = currentTrack.url
-		audio.volume = volume[0]
-		audio.load()
+		// Stop current playback before loading new track
+		if (!audio.paused) {
+			audio.pause()
+		}
+
+		// Small delay to ensure previous operations complete
+		setTimeout(() => {
+			audio.src = currentTrack.url
+			audio.volume = volume[0]
+			audio.load()
+		}, 50)
 	}, [currentTrack])
 
 	// Update volume when volume state changes
