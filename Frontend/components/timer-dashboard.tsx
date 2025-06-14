@@ -45,7 +45,7 @@ export default function TimerDashboard() {
     precision: 0.1
   })
   
-  const [inputDuration, setInputDuration] = useState("60")
+  const [inputDuration, setInputDuration] = useState("10.0")
   const [isConnected, setIsConnected] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const eventSourceRef = useRef<EventSource | null>(null)
@@ -134,21 +134,24 @@ export default function TimerDashboard() {
 
   // Timer control functions
   const startTimer = async () => {
-    const duration = parseInt(inputDuration)
+    const duration = parseFloat(inputDuration)
     if (!duration || duration <= 0) {
       toast({
         title: "Invalid Duration",
-        description: "Please enter a positive number of seconds",
+        description: "Please enter a positive number of seconds (decimals allowed)",
         variant: "destructive",
       })
       return
     }
 
+    // Round to 0.1 second precision on client side for user feedback
+    const roundedDuration = Math.round(duration * 10) / 10
+
     try {
-      await apiCall("/api/timer/start", "POST", { duration })
+      await apiCall("/api/timer/start", "POST", { duration: roundedDuration })
       toast({
         title: "Timer Started",
-        description: `Timer started for ${duration} seconds`,
+        description: `Timer started for ${roundedDuration} seconds (0.1s precision)`,
       })
     } catch (error) {
       // Error already handled in apiCall
@@ -243,7 +246,7 @@ export default function TimerDashboard() {
             <TimerIcon className="w-8 h-8 text-blue-600" />
             Timer Dashboard
           </h1>
-          <p className="text-gray-600 dark:text-gray-300">Real-time timer with precision control</p>
+          <p className="text-gray-600 dark:text-gray-300">Real-time timer with 0.1 second precision control</p>
           <div className="flex justify-center">
             {getConnectionStatus()}
           </div>
@@ -299,8 +302,9 @@ export default function TimerDashboard() {
                     type="number"
                     value={inputDuration}
                     onChange={(e) => setInputDuration(e.target.value)}
-                    placeholder="Enter seconds"
-                    min="1"
+                    placeholder="Enter seconds (e.g., 30.5)"
+                    min="0.1"
+                    step="0.1"
                     className="flex-1"
                   />
                   <Button 
@@ -349,7 +353,7 @@ export default function TimerDashboard() {
         </Card>
 
         {/* Timer Data Points */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -410,6 +414,22 @@ export default function TimerDashboard() {
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 High precision timer
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                Last Update
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">
+                {timerState.timestamp ? new Date(timerState.timestamp).toLocaleTimeString() : "--:--:--"}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Real-time system clock
               </p>
             </CardContent>
           </Card>
