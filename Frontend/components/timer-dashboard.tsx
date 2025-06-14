@@ -58,13 +58,11 @@ export default function TimerDashboard() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const { toast } = useToast();
 
-  const API_BASE = 'http://localhost:3001';
-
   // Connect to SSE stream for real-time updates
   useEffect(() => {
     const connectToStream = () => {
       try {
-        const eventSource = new EventSource(`${API_BASE}/api/timer/stream`);
+        const eventSource = new EventSource(`/api/timer/stream`);
         eventSourceRef.current = eventSource;
 
         eventSource.onopen = () => {
@@ -118,7 +116,7 @@ export default function TimerDashboard() {
   ) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
+      const response = await fetch(endpoint, {
         method,
         headers: {
           'Content-Type': 'application/json',

@@ -4,11 +4,18 @@ const fs = require('fs');
 const path = require('path');
 
 const app = express();
-const PORT = 3001;
+const PORT = 55500;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from the frontend build
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/test', (req, res) => {
+  res.send('Hello World');
+});
 
 // Timer state storage
 let timerState = {
@@ -353,6 +360,15 @@ app.get('/api/timer/stream', (req, res) => {
       sseClients.splice(index, 1);
     }
   });
+});
+
+// Serve the React app for client-side routing
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/timer', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Cleanup on server shutdown

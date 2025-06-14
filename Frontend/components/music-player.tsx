@@ -58,13 +58,12 @@ export default function MusicPlayer() {
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentTrack = tracks[currentTrackIndex];
-  const API_BASE = 'http://localhost:3001';
 
-  // Connect to timer SSE stream for synchronization
+  // Connect to timer SSE stream for synchronization  
   useEffect(() => {
     const connectToTimerStream = () => {
       try {
-        const eventSource = new EventSource(`${API_BASE}/api/timer/stream`);
+        const eventSource = new EventSource(`/api/timer/stream`);
         eventSourceRef.current = eventSource;
 
         eventSource.onopen = () => {
