@@ -151,8 +151,8 @@ export default function MusicPlayer() {
 
 			// Sync audio position with timer elapsed time
 			const timeDiff = Math.abs(audio.currentTime - elapsedTime)
-			if (timeDiff > 0.5) {
-				// Only sync if difference is significant (0.5s)
+			if (timeDiff > 1.5) {
+				// Only sync if difference is significant (1.5s)
 				// Check if audio is ready for seeking
 				if (audio.readyState >= 2) {
 					// HAVE_CURRENT_DATA or higher
