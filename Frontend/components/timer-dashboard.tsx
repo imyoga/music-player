@@ -52,6 +52,7 @@ export default function TimerDashboard() {
   });
 
   const [inputDuration, setInputDuration] = useState('10.0');
+  const [inputElapsedTime, setInputElapsedTime] = useState('0');
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -209,6 +210,37 @@ export default function TimerDashboard() {
     }
   };
 
+  const setElapsedTime = async () => {
+    const elapsedTime = parseFloat(inputElapsedTime);
+    if (isNaN(elapsedTime) || elapsedTime < 0) {
+      toast({
+        title: 'Invalid Elapsed Time',
+        description: 'Please enter a valid non-negative number of seconds',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!timerState.id) {
+      toast({
+        title: 'No Active Timer',
+        description: 'Please start a timer first before setting elapsed time',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await apiCall('/api/timer/set-elapsed', 'POST', { elapsedTime });
+      toast({
+        title: 'Elapsed Time Set',
+        description: `Elapsed time set to ${elapsedTime} seconds`,
+      });
+    } catch (error) {
+      // Error already handled in apiCall
+    }
+  };
+
   // Helper functions
   const formatTime = (tenthsOfSeconds: number): string => {
     const totalSeconds = tenthsOfSeconds / 10;
@@ -322,6 +354,11 @@ export default function TimerDashboard() {
                 {formatTime(timerState.remainingTime)}
               </div>
 
+              {/* Seconds Display */}
+              <div className='text-2xl font-mono text-gray-600 dark:text-gray-400'>
+                {(timerState.remainingTime / 10).toFixed(1)} seconds remaining
+              </div>
+
               {/* Progress Bar */}
               <div className='space-y-2'>
                 <Progress value={getProgressPercentage()} className='h-3' />
@@ -370,6 +407,38 @@ export default function TimerDashboard() {
                 </div>
                 <p className='text-xs text-gray-500 dark:text-gray-400'>
                   ⚡ All connected music players will sync to this timer
+                </p>
+              </div>
+
+              {/* Set Elapsed Time */}
+              <div className='flex flex-col space-y-2'>
+                <Label htmlFor='elapsedTime'>
+                  Set Elapsed Time (Jump to Position)
+                </Label>
+                <div className='flex gap-2'>
+                  <Input
+                    id='elapsedTime'
+                    type='number'
+                    value={inputElapsedTime}
+                    onChange={e => setInputElapsedTime(e.target.value)}
+                    placeholder='Enter elapsed seconds (e.g., 20)'
+                    min='0'
+                    step='1'
+                    className='flex-1'
+                    disabled={!timerState.id}
+                  />
+                  <Button
+                    onClick={setElapsedTime}
+                    disabled={isLoading || !isConnected || !timerState.id}
+                    className='bg-orange-600 hover:bg-orange-700'
+                  >
+                    <Clock className='w-4 h-4 mr-2' />
+                    Set Position
+                  </Button>
+                </div>
+                <p className='text-xs text-gray-500 dark:text-gray-400'>
+                  🎯 Jump to any position in the current timer (remaining time
+                  will adjust automatically)
                 </p>
               </div>
 
