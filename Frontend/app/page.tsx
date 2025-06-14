@@ -1,7 +1,7 @@
-"use client"
+'use client';
 
-import MusicPlayer from "../components/music-player"
+import MusicPlayer from '../components/music-player';
 
 export default function Page() {
-  return <MusicPlayer />
+  return <MusicPlayer />;
 }

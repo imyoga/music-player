@@ -1,7 +1,7 @@
-"use client"
+'use client';
 
-import TimerDashboard from "@/components/timer-dashboard"
+import TimerDashboard from '@/components/timer-dashboard';
 
 export default function TimerPage() {
-  return <TimerDashboard />
-} 
+  return <TimerDashboard />;
+}

@@ -7,11 +7,18 @@
     "express": "^5.1.0",
     "cors": "^2.8.5"
   },
+  "devDependencies": {
+    "prettier": "^3.0.0"
+  },
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "nodemonConfig": {
-    "ignore": ["timer.json"]
+    "ignore": [
+      "timer.json"
+    ]
   }
 }

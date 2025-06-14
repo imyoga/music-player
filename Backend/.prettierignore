@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Lock files
+*.lock
+yarn.lock
+package-lock.json
+pnpm-lock.yaml
+
+# Environment files
+.env
+.env.local
+
+# Cache
+.cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+
+# Data files
+timer.json 
