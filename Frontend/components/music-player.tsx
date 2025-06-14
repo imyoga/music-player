@@ -265,6 +265,15 @@ export default function MusicPlayer() {
 		return `${minutes}:${seconds.toString().padStart(2, '0')}`
 	}
 
+	const formatTimeWithSeconds = (time: number) => {
+		if (isNaN(time)) return { formatted: '0:00', totalSeconds: '0s' }
+		const minutes = Math.floor(time / 60)
+		const seconds = Math.floor(time % 60)
+		const formatted = `${minutes}:${seconds.toString().padStart(2, '0')}`
+		const totalSeconds = `${Math.floor(time)}s`
+		return { formatted, totalSeconds }
+	}
+
 	const getTimerElapsedTime = () => {
 		return (timerState.duration - timerState.remainingTime) / 10
 	}
@@ -368,8 +377,18 @@ export default function MusicPlayer() {
 									disabled={true}
 								/>
 								<div className='flex justify-between text-sm text-purple-200'>
-									<span>{formatTime(currentTime)}</span>
-									<span>{formatTime(duration)}</span>
+									<div className='text-left'>
+										<div>{formatTime(currentTime)}</div>
+										<div className='text-xs opacity-75'>
+											{Math.floor(currentTime)}s
+										</div>
+									</div>
+									<div className='text-right'>
+										<div>{formatTime(duration)}</div>
+										<div className='text-xs opacity-75'>
+											{Math.floor(duration)}s
+										</div>
+									</div>
 								</div>
 							</div>
 
@@ -378,13 +397,25 @@ export default function MusicPlayer() {
 								<div className='text-sm text-purple-200 space-y-1'>
 									<div className='flex justify-between'>
 										<span>Timer Elapsed:</span>
-										<span className='font-mono'>
-											{formatTime(getTimerElapsedTime())}
-										</span>
+										<div className='text-right'>
+											<span className='font-mono'>
+												{formatTime(getTimerElapsedTime())}
+											</span>
+											<div className='text-xs opacity-75'>
+												{Math.floor(getTimerElapsedTime())}s total
+											</div>
+										</div>
 									</div>
 									<div className='flex justify-between'>
 										<span>Audio Position:</span>
-										<span className='font-mono'>{formatTime(currentTime)}</span>
+										<div className='text-right'>
+											<span className='font-mono'>
+												{formatTime(currentTime)}
+											</span>
+											<div className='text-xs opacity-75'>
+												{Math.floor(currentTime)}s
+											</div>
+										</div>
 									</div>
 									<div className='flex justify-between'>
 										<span>Sync Status:</span>
@@ -489,11 +520,21 @@ export default function MusicPlayer() {
 								<div className='font-mono'>
 									{formatTime(getTimerElapsedTime())}
 								</div>
+								<div className='text-xs opacity-75'>
+									{formatTimeWithSeconds(getTimerElapsedTime()).totalSeconds}
+								</div>
 							</div>
 							<div>
 								<span className='font-medium'>Remaining:</span>
 								<div className='font-mono'>
 									{formatTime(timerState.remainingTime / 10)}
+								</div>
+								<div className='text-xs opacity-75'>
+									{
+										formatTimeWithSeconds(timerState.remainingTime / 10)
+											.totalSeconds
+									}{' '}
+									left
 								</div>
 							</div>
 						</div>
