@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Play, Pause, Music, Upload, Radio, Wifi, WifiOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { API_CONFIG, getApiUrl } from '@/lib/config';
 
 interface Track {
   file: File;
@@ -63,7 +64,7 @@ export default function MusicPlayer() {
   useEffect(() => {
     const connectToTimerStream = () => {
       try {
-        const eventSource = new EventSource(`/api/timer/stream`);
+        const eventSource = new EventSource(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM));
         eventSourceRef.current = eventSource;
 
         eventSource.onopen = () => {

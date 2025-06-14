@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { API_CONFIG, getApiUrl } from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -62,7 +63,7 @@ export default function TimerDashboard() {
   useEffect(() => {
     const connectToStream = () => {
       try {
-        const eventSource = new EventSource(`/api/timer/stream`);
+        const eventSource = new EventSource(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM));
         eventSourceRef.current = eventSource;
 
         eventSource.onopen = () => {
@@ -162,7 +163,7 @@ export default function TimerDashboard() {
     const roundedDuration = Math.round(duration);
 
     try {
-      await apiCall('/api/timer/start', 'POST', { duration: roundedDuration });
+      await apiCall(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.START), 'POST', { duration: roundedDuration });
       toast({
         title: 'Timer Started',
         description: `Timer started for ${roundedDuration} seconds (1s precision)`,
@@ -174,7 +175,7 @@ export default function TimerDashboard() {
 
   const stopTimer = async () => {
     try {
-      await apiCall('/api/timer/stop', 'POST');
+      await apiCall(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STOP), 'POST');
       toast({
         title: 'Timer Stopped',
         description: 'Timer has been stopped and reset',
@@ -186,7 +187,7 @@ export default function TimerDashboard() {
 
   const pauseTimer = async () => {
     try {
-      await apiCall('/api/timer/pause', 'POST');
+      await apiCall(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.PAUSE), 'POST');
       toast({
         title: 'Timer Paused',
         description: 'Timer has been paused',
@@ -198,7 +199,7 @@ export default function TimerDashboard() {
 
   const continueTimer = async () => {
     try {
-      await apiCall('/api/timer/continue', 'POST');
+      await apiCall(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.CONTINUE), 'POST');
       toast({
         title: 'Timer Resumed',
         description: 'Timer has been resumed',
@@ -229,7 +230,7 @@ export default function TimerDashboard() {
     }
 
     try {
-      await apiCall('/api/timer/set-elapsed', 'POST', { elapsedTime });
+      await apiCall(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.SET_ELAPSED), 'POST', { elapsedTime });
       toast({
         title: 'Elapsed Time Set',
         description: `Elapsed time set to ${elapsedTime} seconds`,

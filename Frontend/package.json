@@ -5,13 +5,7 @@
 	"packageManager": "pnpm@9.15.4",
 	"scripts": {
 		"dev": "next dev",
-		"build": "next build",
-		"start": "next start",
-		"lint": "next lint",
-		"format": "prettier --write .",
-		"format:check": "prettier --check .",
-		"deploy": "next build",
-		"build:watch": "next build --watch"
+		"build": "NODE_ENV=production next build"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^3.9.1",
