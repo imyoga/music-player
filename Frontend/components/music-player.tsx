@@ -26,6 +26,8 @@ interface TimerState {
   isRunning: boolean;
   isPaused: boolean;
   timestamp: number;
+  serverTime?: number; // server time when update was sent
+  targetEndTime?: number | null; // when timer should end (null if not running)
   precision: number; // 0.1 for tenth of second precision
 }
 

@@ -54,6 +54,7 @@ class TimerService {
 
   // Helper function to broadcast timer updates to all SSE clients
   broadcastTimerUpdate() {
+    const now = Date.now();
     const update = {
       id: this.timerState.id,
       duration: this.timerState.duration, // in tenths of seconds
@@ -62,7 +63,11 @@ class TimerService {
       remainingSeconds: this.timerState.remainingTime / config.timer.precisionTenths, // for compatibility
       isRunning: this.timerState.isRunning,
       isPaused: this.timerState.isPaused,
-      timestamp: Date.now(),
+      timestamp: now, // when server sent this update
+      serverTime: now, // current server time for sync
+      targetEndTime: this.timerState.isRunning && !this.timerState.isPaused 
+        ? now + (this.timerState.remainingTime * (config.timer.precision / config.timer.precisionTenths)) // when timer should end
+        : null, // null if not running
       precision: 1.0, // indicates 1 second precision
     };
 
@@ -238,6 +243,7 @@ class TimerService {
 
   // Get current timer status
   getTimerStatus() {
+    const now = Date.now();
     return {
       id: this.timerState.id,
       duration: this.timerState.duration, // in tenths of seconds
@@ -246,7 +252,11 @@ class TimerService {
       remainingSeconds: this.timerState.remainingTime / config.timer.precisionTenths, // for compatibility
       isRunning: this.timerState.isRunning,
       isPaused: this.timerState.isPaused,
-      timestamp: Date.now(),
+      timestamp: now, // when server sent this status
+      serverTime: now, // current server time for sync
+      targetEndTime: this.timerState.isRunning && !this.timerState.isPaused 
+        ? now + (this.timerState.remainingTime * (config.timer.precision / config.timer.precisionTenths)) // when timer should end
+        : null, // null if not running
       precision: 1.0, // indicates 1 second precision
     };
   }

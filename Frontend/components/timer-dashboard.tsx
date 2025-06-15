@@ -36,6 +36,8 @@ interface TimerState {
   isRunning: boolean;
   isPaused: boolean;
   timestamp: number;
+  serverTime?: number; // server time when update was sent
+  targetEndTime?: number | null; // when timer should end (null if not running)
   precision: number; // 0.1 for tenth of second precision
 }
 
@@ -56,8 +58,51 @@ export default function TimerDashboard() {
   const [inputElapsedTime, setInputElapsedTime] = useState('0');
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [syncedTimerState, setSyncedTimerState] = useState<TimerState>(timerState);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+
+  // Local synchronization helper functions
+  const startLocalSync = (serverData: TimerState) => {
+    stopLocalSync(); // Clear any existing sync
+    
+    if (!serverData.targetEndTime || !serverData.serverTime) return;
+    
+    const clientReceiveTime = Date.now();
+    
+    syncIntervalRef.current = setInterval(() => {
+      const now = Date.now();
+      const calculatedRemainingMs = Math.max(0, serverData.targetEndTime! - now);
+      const calculatedRemainingTenths = Math.round(calculatedRemainingMs / 100); // Convert to tenths of seconds
+      
+      if (calculatedRemainingTenths <= 0) {
+        // Timer finished locally
+        setSyncedTimerState(prev => ({
+          ...prev,
+          remainingTime: 0,
+          remainingSeconds: 0,
+          isRunning: false,
+          isPaused: false,
+        }));
+        stopLocalSync();
+      } else {
+        // Update with locally calculated time
+        setSyncedTimerState(prev => ({
+          ...serverData,
+          remainingTime: calculatedRemainingTenths,
+          remainingSeconds: calculatedRemainingTenths / 10,
+        }));
+      }
+    }, 100); // Update every 100ms for smooth display
+  };
+
+  const stopLocalSync = () => {
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+      syncIntervalRef.current = null;
+    }
+  };
 
   // Connect to SSE stream for real-time updates
   useEffect(() => {
@@ -86,6 +131,14 @@ export default function TimerDashboard() {
           try {
             const data = JSON.parse(event.data);
             setTimerState(data);
+            
+            // Start local synchronization if we have targetEndTime
+            if (data.targetEndTime && data.isRunning && !data.isPaused) {
+              startLocalSync(data);
+            } else {
+              stopLocalSync();
+              setSyncedTimerState(data);
+            }
           } catch (error) {
             console.error('❌ Failed to parse timer data:', error);
           }
@@ -120,6 +173,7 @@ export default function TimerDashboard() {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
+      stopLocalSync();
     };
   }, []);
 
@@ -270,20 +324,20 @@ export default function TimerDashboard() {
   };
 
   const getProgressPercentage = (): number => {
-    if (timerState.duration === 0) return 0;
-    const elapsed = timerState.duration - timerState.remainingTime;
-    return Math.min(100, Math.max(0, (elapsed / timerState.duration) * 100));
+    if (syncedTimerState.duration === 0) return 0;
+    const elapsed = syncedTimerState.duration - syncedTimerState.remainingTime;
+    return Math.min(100, Math.max(0, (elapsed / syncedTimerState.duration) * 100));
   };
 
   const getStatusBadge = () => {
-    if (timerState.isRunning && !timerState.isPaused) {
+    if (syncedTimerState.isRunning && !syncedTimerState.isPaused) {
       return (
         <Badge className='bg-green-500'>
           <Play className='w-3 h-3 mr-1' />
           Running
         </Badge>
       );
-    } else if (timerState.isPaused) {
+    } else if (syncedTimerState.isPaused) {
       return (
         <Badge className='bg-yellow-500'>
           <Pause className='w-3 h-3 mr-1' />
@@ -368,7 +422,7 @@ export default function TimerDashboard() {
                       Elapsed Time
                     </div>
                     <div className='text-xl font-mono font-bold text-green-600 dark:text-green-400'>
-                      {formatTime(timerState.duration - timerState.remainingTime)}
+                      {formatTime(syncedTimerState.duration - syncedTimerState.remainingTime)}
                     </div>
                   </div>
                   <div>
@@ -376,7 +430,7 @@ export default function TimerDashboard() {
                       Remaining Time
                     </div>
                     <div className='text-xl font-mono font-bold text-red-600 dark:text-red-400'>
-                      {formatTime(timerState.remainingTime)}
+                      {formatTime(syncedTimerState.remainingTime)}
                     </div>
                   </div>
                 </div>
@@ -521,10 +575,10 @@ export default function TimerDashboard() {
             </CardHeader>
             <CardContent>
               <div className='text-2xl font-bold text-green-600'>
-                {formatTime(timerState.duration)}
+                {formatTime(syncedTimerState.duration)}
               </div>
               <p className='text-xs text-gray-500 mt-1'>
-                {timerState.durationSeconds}s total
+                                  {syncedTimerState.durationSeconds}s total
               </p>
             </CardContent>
           </Card>
