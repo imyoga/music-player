@@ -51,7 +51,6 @@ export default function MusicPlayer() {
     precision: 0.1,
   });
   const [isConnected, setIsConnected] = useState(false);
-  const [connectionMethod, setConnectionMethod] = useState<'stream' | 'polling' | 'none'>('none');
   const [lastSyncTime, setLastSyncTime] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -63,27 +62,14 @@ export default function MusicPlayer() {
 
   // Connect to timer SSE stream for synchronization  
   useEffect(() => {
-    let pollInterval: NodeJS.Timeout | null = null;
-
     const connectToTimerStream = () => {
       try {
         console.log('🔗 Music Player: Attempting SSE connection...');
         const eventSource = new EventSource(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM));
         eventSourceRef.current = eventSource;
 
-        // Set a timeout to fallback to polling if EventSource fails
-        const connectionTimeout = setTimeout(() => {
-          if (!isConnected) {
-            console.warn('⚠️ Music Player: SSE timeout, falling back to polling...');
-            eventSource.close();
-            startPolling();
-          }
-        }, 5000);
-
         eventSource.onopen = () => {
-          clearTimeout(connectionTimeout);
           setIsConnected(true);
-          setConnectionMethod('stream');
           console.log('✅ Music Player: Connected to timer stream');
         };
 
@@ -98,54 +84,26 @@ export default function MusicPlayer() {
         };
 
         eventSource.onerror = error => {
-          clearTimeout(connectionTimeout);
           console.error('❌ Music Player: SSE connection error:', error);
           setIsConnected(false);
-          setConnectionMethod('none');
 
-          // Fallback to polling immediately on error
-          if (eventSource.readyState === EventSource.CLOSED) {
-            console.log('🔄 Music Player: SSE closed, falling back to polling...');
-            startPolling();
-          } else {
-            // Reconnect after 3 seconds if not closed
-            setTimeout(() => {
-              if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
-                connectToTimerStream();
-              }
-            }, 3000);
-          }
+          // Attempt to reconnect after 3 seconds
+          setTimeout(() => {
+            if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
+              console.log('🔄 Music Player: Attempting to reconnect...');
+              connectToTimerStream();
+            }
+          }, 3000);
         };
       } catch (error) {
         console.error('❌ Music Player: Failed to connect to stream:', error);
         setIsConnected(false);
-        setConnectionMethod('none');
-        startPolling();
+        
+        // Retry connection after 3 seconds
+        setTimeout(() => {
+          connectToTimerStream();
+        }, 3000);
       }
-    };
-
-    // Fallback polling mechanism
-    const startPolling = () => {
-      console.log('🔁 Music Player: Starting polling fallback...');
-      setIsConnected(false);
-      setConnectionMethod('polling');
-      
-      // Clear any existing interval
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
-      
-      // Poll every 1 second
-      pollInterval = setInterval(async () => {
-        try {
-          const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STATUS));
-          const data = await response.json();
-          setTimerState(data.timer);
-          setLastSyncTime(Date.now());
-        } catch (error) {
-          console.error('❌ Music Player: Polling failed:', error);
-        }
-      }, 1000);
     };
 
     connectToTimerStream();
@@ -157,11 +115,8 @@ export default function MusicPlayer() {
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
       }
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
     };
-  }, [isConnected]);
+  }, []);
 
   // Sync audio playback with timer state
   useEffect(() => {
@@ -421,18 +376,11 @@ export default function MusicPlayer() {
   };
 
   const getConnectionStatus = () => {
-    if (connectionMethod === 'stream') {
+    if (isConnected) {
       return (
         <Badge variant='default' className='bg-green-500'>
           <Wifi className='w-3 h-3 mr-1' />
           SSE Stream
-        </Badge>
-      );
-    } else if (connectionMethod === 'polling') {
-      return (
-        <Badge variant='secondary' className='bg-orange-500 text-white'>
-          <Radio className='w-3 h-3 mr-1' />
-          Polling Mode
         </Badge>
       );
     } else {
@@ -446,170 +394,173 @@ export default function MusicPlayer() {
   };
 
   const getPlaybackStatus = () => {
-    if (!timerState.id) {
-      return <Badge variant='outline'>Waiting for Timer</Badge>;
-    } else if (timerState.isRunning) {
-      return (
-        <Badge variant='default' className='bg-green-500'>
-          <Play className='w-3 h-3 mr-1' />
-          Playing
-        </Badge>
-      );
-    } else if (timerState.isPaused) {
-      return (
-        <Badge variant='secondary'>
-          <Pause className='w-3 h-3 mr-1' />
-          Paused
-        </Badge>
-      );
-    } else {
-      return <Badge variant='outline'>Stopped</Badge>;
-    }
+    if (!currentTrack) return 'No track loaded';
+    if (isLoading) return 'Loading...';
+    if (isPlaying) return 'Playing';
+    if (timerState.isPaused) return 'Paused by timer';
+    if (!timerState.isRunning) return 'Stopped by timer';
+    return 'Ready';
   };
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4'>
-      <div className='max-w-md mx-auto space-y-6'>
+    <div className='min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-indigo-900 text-white p-4'>
+      <div className='max-w-4xl mx-auto space-y-6'>
         {/* Header */}
-        <div className='text-center text-white'>
-          <Radio className='w-12 h-12 mx-auto mb-2' />
-          <h1 className='text-2xl font-bold'>Synchronized Radio Player</h1>
-          <p className='text-purple-200'>Synced with server timer</p>
-          <div className='flex justify-center gap-2 mt-2'>
+        <div className='text-center space-y-2'>
+          <h1 className='text-4xl font-bold flex items-center justify-center gap-2'>
+            <Radio className='w-8 h-8 text-purple-400' />
+            Radio Music Player
+          </h1>
+          <p className='text-purple-200'>
+            Synchronized with master timer • Real-time streaming
+          </p>
+          <div className='flex justify-center gap-2'>
             {getConnectionStatus()}
-            {getPlaybackStatus()}
+            <Badge
+              variant='outline'
+              className='bg-purple-700 text-purple-200 border-purple-500'
+            >
+              🎵 Timer Sync
+            </Badge>
           </div>
         </div>
 
-        {/* File Upload */}
+        {/* Main Player */}
         <Card className='bg-white/10 backdrop-blur border-white/20'>
           <CardContent className='p-6'>
-            <input
-              ref={fileInputRef}
-              type='file'
-              accept='audio/*'
-              onChange={handleFileSelect}
-              className='hidden'
-            />
-            <Button
-              onClick={() => fileInputRef.current?.click()}
-              className='w-full bg-purple-600 hover:bg-purple-700 text-white'
-              size='lg'
-            >
-              <Upload className='w-5 h-5 mr-2' />
-              Select Music File
-            </Button>
-            <p className='text-xs text-purple-200 mt-2 text-center'>
-              Playback is controlled by the server timer
-            </p>
+            <div className='space-y-6'>
+              {/* File Upload */}
+              <div className='text-center'>
+                <input
+                  ref={fileInputRef}
+                  type='file'
+                  accept='audio/*'
+                  onChange={handleFileSelect}
+                  className='hidden'
+                />
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  className='bg-purple-600 hover:bg-purple-700 text-white px-6 py-3'
+                  size='lg'
+                >
+                  <Upload className='w-5 h-5 mr-2' />
+                  Select Audio File
+                </Button>
+                <p className='text-sm text-purple-200 mt-2'>
+                  Upload an audio file to sync with the master timer
+                </p>
+              </div>
+
+              {/* Audio Player */}
+              <audio ref={audioRef} />
+
+              {/* Current Track Info */}
+              {currentTrack && (
+                <div className='bg-white/5 p-4 rounded-lg space-y-4'>
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center space-x-3'>
+                      <div className='w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center'>
+                        <Music className='w-6 h-6 text-white' />
+                      </div>
+                      <div>
+                        <h3 className='font-semibold text-lg text-white'>
+                          {currentTrack.name}
+                        </h3>
+                        <p className='text-purple-200 text-sm'>
+                          Status: {getPlaybackStatus()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className='text-right'>
+                      <div className='text-sm text-purple-200'>Duration</div>
+                      <div className='font-mono text-white'>
+                        {formatTime(duration)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className='space-y-2'>
+                    <div className='flex justify-between text-sm text-purple-200'>
+                      <span>{formatTime(currentTime)}</span>
+                      <span>{formatTime(duration)}</span>
+                    </div>
+                    <div className='w-full bg-white/20 rounded-full h-2'>
+                      <div
+                        className='bg-purple-400 h-2 rounded-full transition-all duration-300'
+                        style={{
+                          width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%',
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Timer Sync Info */}
+                  <div className='mt-4 p-3 bg-white/5 rounded-lg'>
+                    <div className='text-sm text-purple-200 space-y-1'>
+                      <div className='flex justify-between'>
+                        <span>Timer Elapsed:</span>
+                        <div className='text-right'>
+                          <span className='font-mono'>
+                            {formatTime(getTimerElapsedTime())}
+                          </span>
+                          <div className='text-xs opacity-75'>
+                            {Math.floor(getTimerElapsedTime())}s total
+                          </div>
+                        </div>
+                      </div>
+                      <div className='flex justify-between'>
+                        <span>Audio Position:</span>
+                        <div className='text-right'>
+                          <span className='font-mono'>
+                            {formatTime(currentTime)}
+                          </span>
+                          <div className='text-xs opacity-75'>
+                            {Math.floor(currentTime)}s
+                          </div>
+                        </div>
+                      </div>
+                      <div className='flex justify-between'>
+                        <span>Sync Status:</span>
+                        <span
+                          className={`font-mono ${
+                            Math.abs(currentTime - getTimerElapsedTime()) < 1
+                              ? 'text-green-300'
+                              : 'text-yellow-300'
+                          }`}
+                        >
+                          {Math.abs(currentTime - getTimerElapsedTime()) < 1
+                            ? 'In Sync'
+                            : 'Syncing...'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Volume Control - Only user control available */}
+                  <div className='space-y-2'>
+                    <div className='flex items-center justify-between'>
+                      <span className='text-sm text-purple-200'>Volume</span>
+                      <span className='text-sm text-purple-200 font-mono'>
+                        {Math.round(volume[0] * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      value={volume}
+                      onValueChange={handleVolumeChange}
+                      max={1}
+                      min={0}
+                      step={0.01}
+                      className='w-full'
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        {/* Current Track Display */}
-        {currentTrack && (
-          <Card className='bg-white/10 backdrop-blur border-white/20'>
-            <CardContent className='p-6 text-center'>
-              <div className='w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mx-auto mb-4 flex items-center justify-center'>
-                <Music className='w-10 h-10 text-white' />
-              </div>
-              <h2 className='text-xl font-semibold text-white mb-2 truncate'>
-                {currentTrack.name}
-              </h2>
-
-              {isLoading && (
-                <p className='text-purple-200 text-sm mb-4'>Loading...</p>
-              )}
-
-              {/* Progress Bar - Shows current playback position */}
-              <div className='space-y-2'>
-                <Slider
-                  value={[currentTime]}
-                  max={duration || 100}
-                  step={0.1}
-                  className='w-full pointer-events-none opacity-75'
-                  disabled={true}
-                />
-                <div className='flex justify-between text-sm text-purple-200'>
-                  <div className='text-left'>
-                    <div>{formatTime(currentTime)}</div>
-                    <div className='text-xs opacity-75'>
-                      {Math.floor(currentTime)}s
-                    </div>
-                  </div>
-                  <div className='text-right'>
-                    <div>{formatTime(duration)}</div>
-                    <div className='text-xs opacity-75'>
-                      {Math.floor(duration)}s
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Timer Sync Info */}
-              <div className='mt-4 p-3 bg-white/5 rounded-lg'>
-                <div className='text-sm text-purple-200 space-y-1'>
-                  <div className='flex justify-between'>
-                    <span>Timer Elapsed:</span>
-                    <div className='text-right'>
-                      <span className='font-mono'>
-                        {formatTime(getTimerElapsedTime())}
-                      </span>
-                      <div className='text-xs opacity-75'>
-                        {Math.floor(getTimerElapsedTime())}s total
-                      </div>
-                    </div>
-                  </div>
-                  <div className='flex justify-between'>
-                    <span>Audio Position:</span>
-                    <div className='text-right'>
-                      <span className='font-mono'>
-                        {formatTime(currentTime)}
-                      </span>
-                      <div className='text-xs opacity-75'>
-                        {Math.floor(currentTime)}s
-                      </div>
-                    </div>
-                  </div>
-                  <div className='flex justify-between'>
-                    <span>Sync Status:</span>
-                    <span
-                      className={`font-mono ${
-                        Math.abs(currentTime - getTimerElapsedTime()) < 1
-                          ? 'text-green-300'
-                          : 'text-yellow-300'
-                      }`}
-                    >
-                      {Math.abs(currentTime - getTimerElapsedTime()) < 1
-                        ? 'In Sync'
-                        : 'Syncing...'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Volume Control - Only user control available */}
-              <div className='flex items-center space-x-3 mt-6'>
-                <Music className='w-5 h-5 text-white' />
-                <Slider
-                  value={volume}
-                  max={1}
-                  step={0.1}
-                  onValueChange={handleVolumeChange}
-                  className='flex-1'
-                />
-                <span className='text-white text-sm w-10'>
-                  {Math.round(volume[0] * 100)}%
-                </span>
-              </div>
-
-              <p className='text-xs text-purple-300 mt-3'>
-                🎵 Playback controlled by server timer • Volume adjustable
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Track Selection */}
+        {/* Track List */}
         {tracks.length > 0 && (
           <Card className='bg-white/10 backdrop-blur border-white/20'>
             <CardContent className='p-6'>
@@ -664,21 +615,17 @@ export default function MusicPlayer() {
               <div className='flex items-center justify-between p-2 bg-white/5 rounded'>
                 <span className='font-medium'>Data Method:</span>
                 <span className='font-mono'>
-                  {connectionMethod === 'stream' 
+                  {isConnected 
                     ? 'Server-Sent Events' 
-                    : connectionMethod === 'polling' 
-                    ? 'HTTP Polling (1s)'
                     : 'Disconnected'}
                 </span>
               </div>
               <div className='flex items-center justify-between p-2 bg-white/5 rounded'>
                 <span className='font-medium'>Performance:</span>
                 <span className={`font-mono ${
-                  connectionMethod === 'stream' ? 'text-green-300' : 
-                  connectionMethod === 'polling' ? 'text-orange-300' : 'text-red-300'
+                  isConnected ? 'text-green-300' : 'text-red-300'
                 }`}>
-                  {connectionMethod === 'stream' ? '⚡ Real-time' : 
-                   connectionMethod === 'polling' ? '🔄 1s Delay' : '❌ Offline'}
+                  {isConnected ? '⚡ Real-time' : '❌ Offline'}
                 </span>
               </div>
               <div className='flex items-center justify-between p-2 bg-white/5 rounded'>
@@ -727,19 +674,39 @@ export default function MusicPlayer() {
                   {formatTime(timerState.remainingTime / 10)}
                 </div>
                 <div className='text-xs opacity-75'>
-                  {
-                    formatTimeWithSeconds(timerState.remainingTime / 10)
-                      .totalSeconds
-                  }{' '}
-                  left
+                  {formatTimeWithSeconds(timerState.remainingTime / 10).totalSeconds}
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Hidden Audio Element */}
-        <audio ref={audioRef} preload='metadata' />
+        {/* Control Info */}
+        <Card className='bg-white/10 backdrop-blur border-white/20'>
+          <CardContent className='p-4'>
+            <h3 className='text-sm font-semibold text-white mb-3'>
+              How It Works
+            </h3>
+            <div className='text-xs text-purple-200 space-y-2'>
+              <p>
+                🎵 This player is synchronized with the master timer. All
+                playback is controlled by the timer dashboard.
+              </p>
+              <p>
+                ⚡ The player receives real-time updates via Server-Sent Events
+                (SSE) for instant synchronization.
+              </p>
+              <p>
+                🎯 Audio position automatically syncs with the timer's elapsed
+                time for perfect coordination across multiple devices.
+              </p>
+              <p>
+                🔊 You can only control the volume - play/pause is managed by
+                the master timer.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

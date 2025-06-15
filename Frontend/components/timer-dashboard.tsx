@@ -55,15 +55,12 @@ export default function TimerDashboard() {
   const [inputDuration, setInputDuration] = useState('10.0');
   const [inputElapsedTime, setInputElapsedTime] = useState('0');
   const [isConnected, setIsConnected] = useState(false);
-  const [connectionMethod, setConnectionMethod] = useState<'stream' | 'polling' | 'none'>('none');
   const [isLoading, setIsLoading] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const { toast } = useToast();
 
   // Connect to SSE stream for real-time updates
   useEffect(() => {
-    let pollInterval: NodeJS.Timeout | null = null;
-    
     const connectToStream = () => {
       try {
         const streamUrl = getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM);
@@ -80,26 +77,14 @@ export default function TimerDashboard() {
         const eventSource = new EventSource(streamUrl);
         eventSourceRef.current = eventSource;
 
-        // Set a timeout to fallback to polling if EventSource fails
-        const connectionTimeout = setTimeout(() => {
-          if (!isConnected) {
-            console.warn('⚠️ EventSource connection timeout, falling back to polling...');
-            eventSource.close();
-            startPolling();
-          }
-        }, 5000); // 5 second timeout
-
         eventSource.onopen = () => {
-          clearTimeout(connectionTimeout);
           setIsConnected(true);
-          setConnectionMethod('stream');
           console.log('✅ Connected to timer stream');
         };
 
         eventSource.onmessage = event => {
           try {
             const data = JSON.parse(event.data);
-            // console.log('📨 Timer update received:', data);
             setTimerState(data);
           } catch (error) {
             console.error('❌ Failed to parse timer data:', error);
@@ -107,58 +92,26 @@ export default function TimerDashboard() {
         };
 
         eventSource.onerror = error => {
-          clearTimeout(connectionTimeout);
           console.error('❌ SSE connection error:', error);
-          console.log('📊 EventSource readyState:', eventSource.readyState);
-          console.log('📊 EventSource CONNECTING:', EventSource.CONNECTING);
-          console.log('📊 EventSource OPEN:', EventSource.OPEN);
-          console.log('📊 EventSource CLOSED:', EventSource.CLOSED);
           setIsConnected(false);
-          setConnectionMethod('none');
 
-          // Fallback to polling immediately on error
-          if (eventSource.readyState === EventSource.CLOSED) {
-            console.log('🔄 EventSource closed, falling back to polling...');
-            startPolling();
-          } else {
-            // Reconnect after 3 seconds if not closed
-            setTimeout(() => {
-              if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
-                console.log('🔄 Attempting to reconnect to timer stream...');
-                connectToStream();
-              }
-            }, 3000);
-          }
+          // Attempt to reconnect after 3 seconds
+          setTimeout(() => {
+            if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
+              console.log('🔄 Attempting to reconnect to timer stream...');
+              connectToStream();
+            }
+          }, 3000);
         };
       } catch (error) {
         console.error('❌ Failed to connect to stream:', error);
         setIsConnected(false);
-        setConnectionMethod('none');
-        startPolling();
+        
+        // Retry connection after 3 seconds
+        setTimeout(() => {
+          connectToStream();
+        }, 3000);
       }
-    };
-
-    // Fallback polling mechanism
-    const startPolling = () => {
-      console.log('🔁 Starting polling fallback...');
-      setIsConnected(false); // Mark as not connected to SSE
-      setConnectionMethod('polling');
-      
-      // Clear any existing interval
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
-      
-      // Poll every 1 second
-      pollInterval = setInterval(async () => {
-        try {
-          const response = await fetch(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STATUS));
-          const data = await response.json();
-          setTimerState(data.timer);
-        } catch (error) {
-          console.error('❌ Polling failed:', error);
-        }
-      }, 1000);
     };
 
     connectToStream();
@@ -167,11 +120,8 @@ export default function TimerDashboard() {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
     };
-  }, [isConnected]);
+  }, []);
 
   // API call helper
   const apiCall = async (
@@ -306,55 +256,43 @@ export default function TimerDashboard() {
 
   // Helper functions
   const formatTime = (tenthsOfSeconds: number): string => {
-    const totalSeconds = tenthsOfSeconds / 10;
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const secs = Math.floor(totalSeconds % 60);
-    const tenths = Math.floor(tenthsOfSeconds % 10);
+    if (isNaN(tenthsOfSeconds) || tenthsOfSeconds < 0) return '00:00.0';
 
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${minutes
-        .toString()
-        .padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${tenths}`;
-    }
-    return `${minutes.toString().padStart(2, '0')}:${secs
+    // Convert tenths of seconds to seconds
+    const totalSeconds = tenthsOfSeconds / 10;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    const tenths = Math.floor((totalSeconds * 10) % 10);
+
+    return `${minutes.toString().padStart(2, '0')}:${seconds
       .toString()
       .padStart(2, '0')}.${tenths}`;
   };
 
   const getProgressPercentage = (): number => {
     if (timerState.duration === 0) return 0;
-    return (
-      ((timerState.duration - timerState.remainingTime) / timerState.duration) *
-      100
-    );
+    const elapsed = timerState.duration - timerState.remainingTime;
+    return Math.min(100, Math.max(0, (elapsed / timerState.duration) * 100));
   };
 
   const getStatusBadge = () => {
-    if (timerState.isRunning) {
+    if (timerState.isRunning && !timerState.isPaused) {
       return (
-        <Badge variant='default' className='bg-green-500'>
-          <Activity className='w-3 h-3 mr-1' />
+        <Badge className='bg-green-500'>
+          <Play className='w-3 h-3 mr-1' />
           Running
         </Badge>
       );
     } else if (timerState.isPaused) {
       return (
-        <Badge variant='secondary'>
+        <Badge className='bg-yellow-500'>
           <Pause className='w-3 h-3 mr-1' />
           Paused
         </Badge>
       );
-    } else if (timerState.remainingTime === 0 && timerState.duration > 0) {
-      return (
-        <Badge variant='destructive'>
-          <Zap className='w-3 h-3 mr-1' />
-          Finished
-        </Badge>
-      );
     } else {
       return (
-        <Badge variant='outline'>
+        <Badge variant='secondary'>
           <Square className='w-3 h-3 mr-1' />
           Stopped
         </Badge>
@@ -363,18 +301,11 @@ export default function TimerDashboard() {
   };
 
   const getConnectionStatus = () => {
-    if (connectionMethod === 'stream') {
+    if (isConnected) {
       return (
         <Badge variant='default' className='bg-green-500'>
           <Zap className='w-3 h-3 mr-1' />
           SSE Stream
-        </Badge>
-      );
-    } else if (connectionMethod === 'polling') {
-      return (
-        <Badge variant='secondary' className='bg-orange-500 text-white'>
-          <Activity className='w-3 h-3 mr-1' />
-          Polling Fallback
         </Badge>
       );
     } else {
@@ -411,48 +342,60 @@ export default function TimerDashboard() {
         </div>
 
         {/* Main Timer Display */}
-        <Card className='border-2 shadow-lg'>
-          <CardHeader className='text-center'>
-            <CardTitle className='text-2xl flex items-center justify-center gap-2'>
-              <Clock className='w-6 h-6' />
-              Current Timer
+        <Card className='bg-white dark:bg-gray-800 shadow-lg'>
+          <CardHeader className='text-center pb-4'>
+            <CardTitle className='text-2xl font-bold text-gray-800 dark:text-white flex items-center justify-center gap-2'>
+              <Clock className='w-6 h-6 text-blue-600' />
+              Master Timer
             </CardTitle>
             <CardDescription>
-              {timerState.id ? `Timer ID: ${timerState.id}` : 'No active timer'}
+              High-precision timer for synchronized audio playback across
+              multiple devices
             </CardDescription>
           </CardHeader>
           <CardContent className='space-y-6'>
-            {/* Timer Display */}
+            {/* Timer Status */}
             <div className='text-center space-y-4'>
-              <div className='text-6xl font-mono font-bold text-blue-600 dark:text-blue-400'>
-                {formatTime(timerState.remainingTime)}
+              <div className='flex justify-center'>
+                {getStatusBadge()}
               </div>
 
-              {/* Seconds Display */}
-              <div className='text-2xl font-mono text-gray-600 dark:text-gray-400'>
-                {(timerState.remainingTime / 10).toFixed(1)} seconds remaining
-              </div>
+              {/* Time Display */}
+              <div className='bg-gray-50 dark:bg-gray-700 p-6 rounded-lg'>
+                <div className='grid grid-cols-2 gap-4 text-center'>
+                  <div>
+                    <div className='text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>
+                      Elapsed Time
+                    </div>
+                    <div className='text-xl font-mono font-bold text-green-600 dark:text-green-400'>
+                      {formatTime(timerState.duration - timerState.remainingTime)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className='text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>
+                      Remaining Time
+                    </div>
+                    <div className='text-xl font-mono font-bold text-red-600 dark:text-red-400'>
+                      {formatTime(timerState.remainingTime)}
+                    </div>
+                  </div>
+                </div>
 
-              {/* Progress Bar */}
-              <div className='space-y-2'>
-                <Progress value={getProgressPercentage()} className='h-3' />
-                <div className='text-sm text-gray-600 dark:text-gray-400'>
-                  {timerState.duration > 0 && (
-                    <>
-                      Progress: {Math.round(getProgressPercentage())}% •
-                      Precision: {timerState.precision}s
-                    </>
-                  )}
+                {/* Progress Bar */}
+                <div className='mt-4'>
+                  <Progress
+                    value={getProgressPercentage()}
+                    className='h-3 bg-gray-200 dark:bg-gray-600'
+                  />
+                  <div className='text-xs text-gray-500 dark:text-gray-400 mt-1 text-center'>
+                    {getProgressPercentage().toFixed(1)}% Complete
+                  </div>
                 </div>
               </div>
-
-              {/* Status Badge */}
-              <div className='flex justify-center'>{getStatusBadge()}</div>
             </div>
 
             <Separator />
 
-            {/* Controls */}
             <div className='space-y-4'>
               {/* Duration Input */}
               <div className='flex flex-col space-y-2'>
@@ -555,7 +498,21 @@ export default function TimerDashboard() {
         </Card>
 
         {/* Timer Data Points */}
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4'>
+        <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+          <Card>
+            <CardHeader className='pb-2'>
+              <CardTitle className='text-sm font-medium text-gray-600 dark:text-gray-400'>
+                Timer ID
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className='text-2xl font-bold text-blue-600'>
+                {timerState.id ? timerState.id.slice(0, 8) : 'None'}
+              </div>
+              <p className='text-xs text-gray-500 mt-1'>Unique identifier</p>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className='pb-2'>
               <CardTitle className='text-sm font-medium text-gray-600 dark:text-gray-400'>
@@ -563,47 +520,11 @@ export default function TimerDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className='text-2xl font-bold'>
+              <div className='text-2xl font-bold text-green-600'>
                 {formatTime(timerState.duration)}
               </div>
               <p className='text-xs text-gray-500 mt-1'>
-                {(timerState.duration / 10).toFixed(1)} seconds
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className='pb-2'>
-              <CardTitle className='text-sm font-medium text-gray-600 dark:text-gray-400'>
-                Remaining Time
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold text-blue-600'>
-                {formatTime(timerState.remainingTime)}
-              </div>
-              <p className='text-xs text-gray-500 mt-1'>
-                {(timerState.remainingTime / 10).toFixed(1)} seconds left
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className='pb-2'>
-              <CardTitle className='text-sm font-medium text-gray-600 dark:text-gray-400'>
-                Elapsed Time
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className='text-2xl font-bold text-green-600'>
-                {formatTime(timerState.duration - timerState.remainingTime)}
-              </div>
-              <p className='text-xs text-gray-500 mt-1'>
-                {(
-                  (timerState.duration - timerState.remainingTime) /
-                  10
-                ).toFixed(1)}{' '}
-                seconds passed
+                {timerState.durationSeconds}s total
               </p>
             </CardContent>
           </Card>
@@ -657,38 +578,30 @@ export default function TimerDashboard() {
                   {getConnectionStatus()}
                 </div>
                 <p className='text-xs text-gray-500 mt-1 text-center'>
-                  {connectionMethod === 'stream' 
+                  {isConnected 
                     ? 'Real-time Server-Sent Events' 
-                    : connectionMethod === 'polling' 
-                    ? 'HTTP Polling Fallback (1s interval)'
                     : 'No connection established'}
                 </p>
               </div>
               <div className='flex flex-col items-center p-3 bg-white dark:bg-gray-800 rounded-lg border'>
                 <span className='font-medium text-gray-600 dark:text-gray-400 mb-1'>Performance</span>
                 <div className='text-lg font-bold'>
-                  {connectionMethod === 'stream' ? '⚡ Real-time' : 
-                   connectionMethod === 'polling' ? '🔄 1s Delay' : '❌ Offline'}
+                  {isConnected ? '⚡ Real-time' : '❌ Offline'}
                 </div>
                 <p className='text-xs text-gray-500 mt-1 text-center'>
-                  {connectionMethod === 'stream' 
+                  {isConnected 
                     ? 'Instant updates via SSE' 
-                    : connectionMethod === 'polling' 
-                    ? 'Updates every second'
                     : 'No timer updates'}
                 </p>
               </div>
               <div className='flex flex-col items-center p-3 bg-white dark:bg-gray-800 rounded-lg border'>
                 <span className='font-medium text-gray-600 dark:text-gray-400 mb-1'>Browser Support</span>
                 <div className='text-lg font-bold'>
-                  {connectionMethod === 'stream' ? '✅ Full' : 
-                   connectionMethod === 'polling' ? '⚠️ Limited' : '❌ None'}
+                  {isConnected ? '✅ Full' : '❌ None'}
                 </div>
                 <p className='text-xs text-gray-500 mt-1 text-center'>
-                  {connectionMethod === 'stream' 
+                  {isConnected 
                     ? 'SSE supported' 
-                    : connectionMethod === 'polling' 
-                    ? 'SSE blocked, using fallback'
                     : 'Connection failed'}
                 </p>
               </div>
@@ -716,8 +629,8 @@ export default function TimerDashboard() {
                 {timerState.isPaused.toString()}
               </div>
               <div>
-                <span className='font-medium'>Connection Method:</span>{' '}
-                {connectionMethod}
+                <span className='font-medium'>Connection:</span>{' '}
+                {isConnected ? 'SSE' : 'Disconnected'}
               </div>
             </div>
           </CardContent>
