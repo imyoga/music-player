@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { API_CONFIG, getApiUrl } from '@/lib/config';
 import type { TimerState } from '@/types/music-player';
 
-export const useTimerDashboard = () => {
+export const useTimerDashboard = (accessCode: string | null) => {
   const [timerState, setTimerState] = useState<TimerState>({
     id: null,
     duration: 0,
@@ -62,15 +62,28 @@ export const useTimerDashboard = () => {
 
   // Connect to SSE stream for real-time updates
   useEffect(() => {
+    // Only connect if we have an access code
+    if (!accessCode) {
+      setIsConnected(false);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      stopLocalSync();
+      return;
+    }
+
     const connectToStream = () => {
       try {
-        const streamUrl = getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM);
-        console.log('🔗 Attempting to connect to SSE stream at:', streamUrl);
+        const streamUrl = getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM) + `?accessCode=${accessCode}`;
+        console.log('🔗 Timer Dashboard: Attempting to connect to SSE stream at:', streamUrl);
+        console.log('🔧 Access Code:', accessCode);
         console.log('🔧 NODE_ENV:', process.env.NODE_ENV);
         console.log('🔧 BASE_URL:', API_CONFIG.BASE_URL);
         
         // Clear any existing connection first
         if (eventSourceRef.current) {
+          console.log('🔄 Closing existing SSE connection...');
           eventSourceRef.current.close();
           eventSourceRef.current = null;
         }
@@ -80,12 +93,13 @@ export const useTimerDashboard = () => {
 
         eventSource.onopen = () => {
           setIsConnected(true);
-          console.log('✅ Connected to timer stream');
+          console.log('✅ Timer Dashboard: Connected to timer stream for access code:', accessCode);
         };
 
         eventSource.onmessage = event => {
           try {
             const data = JSON.parse(event.data);
+            console.log('📨 Timer Dashboard: Received timer data:', data);
             setTimerState(data);
             
             // Start local synchronization if we have targetEndTime
@@ -96,28 +110,30 @@ export const useTimerDashboard = () => {
               setSyncedTimerState(data);
             }
           } catch (error) {
-            console.error('❌ Failed to parse timer data:', error);
+            console.error('❌ Timer Dashboard: Failed to parse timer data:', error);
           }
         };
 
         eventSource.onerror = error => {
-          console.error('❌ SSE connection error:', error);
+          console.error('❌ Timer Dashboard: SSE connection error:', error);
+          console.error('❌ EventSource readyState:', eventSource.readyState);
           setIsConnected(false);
 
           // Attempt to reconnect after 3 seconds
           setTimeout(() => {
             if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
-              console.log('🔄 Attempting to reconnect to timer stream...');
+              console.log('🔄 Timer Dashboard: Attempting to reconnect to timer stream...');
               connectToStream();
             }
           }, 3000);
         };
       } catch (error) {
-        console.error('❌ Failed to connect to stream:', error);
+        console.error('❌ Timer Dashboard: Failed to connect to stream:', error);
         setIsConnected(false);
         
         // Retry connection after 3 seconds
         setTimeout(() => {
+          console.log('🔄 Timer Dashboard: Retrying connection...');
           connectToStream();
         }, 3000);
       }
@@ -126,12 +142,13 @@ export const useTimerDashboard = () => {
     connectToStream();
 
     return () => {
+      console.log('🧹 Timer Dashboard: Cleaning up SSE connection...');
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
       stopLocalSync();
     };
-  }, []);
+  }, [accessCode]); // Re-connect when access code changes
 
   return {
     timerState,

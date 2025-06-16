@@ -12,11 +12,13 @@ import type { TimerState } from '@/types/music-player';
 interface ConnectionStatusProps {
   isConnected: boolean;
   timerState: TimerState;
+  accessCode: string;
 }
 
 export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
   isConnected,
   timerState,
+  accessCode,
 }) => {
   const getConnectionStatus = () => {
     if (isConnected) {
@@ -93,8 +95,12 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
         <CardContent>
           <div className='grid grid-cols-2 gap-4 text-sm'>
             <div>
+              <span className='font-medium'>Access Code:</span>{' '}
+              {accessCode}
+            </div>
+            <div>
               <span className='font-medium'>Timer ID:</span>{' '}
-              {timerState.id || 'None'}
+              {timerState.id ? timerState.id.slice(0, 8) + '...' : 'None'}
             </div>
             <div>
               <span className='font-medium'>Is Running:</span>{' '}
@@ -106,7 +112,11 @@ export const ConnectionStatus: React.FC<ConnectionStatusProps> = ({
             </div>
             <div>
               <span className='font-medium'>Connection:</span>{' '}
-              {isConnected ? 'SSE' : 'Disconnected'}
+              {isConnected ? 'SSE Active' : 'Disconnected'}
+            </div>
+            <div>
+              <span className='font-medium'>Stream URL:</span>{' '}
+              {isConnected ? `...?accessCode=${accessCode}` : 'None'}
             </div>
           </div>
         </CardContent>

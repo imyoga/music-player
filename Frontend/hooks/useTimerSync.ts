@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { API_CONFIG, getApiUrl } from '@/lib/config';
 import type { TimerState } from '@/types/music-player';
 
-export const useTimerSync = () => {
+export const useTimerSync = (accessCode: string | null) => {
   const [timerState, setTimerState] = useState<TimerState>({
     id: null,
     duration: 0,
@@ -20,15 +20,26 @@ export const useTimerSync = () => {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
+    // Only connect if we have an access code
+    if (!accessCode) {
+      setIsConnected(false);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      return;
+    }
+
     const connectToTimerStream = () => {
       try {
-        console.log('🔗 Music Player: Attempting SSE connection...');
-        const eventSource = new EventSource(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM));
+        console.log('🔗 Music Player: Attempting SSE connection with access code:', accessCode);
+        const streamUrl = getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STREAM) + `?accessCode=${accessCode}`;
+        const eventSource = new EventSource(streamUrl);
         eventSourceRef.current = eventSource;
 
         eventSource.onopen = () => {
           setIsConnected(true);
-          console.log('✅ Music Player: Connected to timer stream');
+          console.log('✅ Music Player: Connected to timer stream for access code:', accessCode);
         };
 
         eventSource.onmessage = event => {
@@ -71,7 +82,7 @@ export const useTimerSync = () => {
         eventSourceRef.current.close();
       }
     };
-  }, []);
+  }, [accessCode]); // Re-connect when access code changes
 
   return {
     timerState,

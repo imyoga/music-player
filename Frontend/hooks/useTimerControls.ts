@@ -7,9 +7,10 @@ import type { TimerState } from '@/types/music-player';
 interface UseTimerControlsProps {
   timerState: TimerState;
   isConnected: boolean;
+  accessCode: string | null;
 }
 
-export const useTimerControls = ({ timerState, isConnected }: UseTimerControlsProps) => {
+export const useTimerControls = ({ timerState, isConnected, accessCode }: UseTimerControlsProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -19,29 +20,62 @@ export const useTimerControls = ({ timerState, isConnected }: UseTimerControlsPr
     method: string = 'GET',
     body?: any
   ) => {
+    if (!accessCode) {
+      throw new Error('Access code is required');
+    }
+
+    const requestBody = body ? { ...body, accessCode } : { accessCode };
+    
+    console.log('📤 API Call:', {
+      endpoint,
+      method,
+      accessCode,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-access-code': accessCode,
+      },
+      body: requestBody
+    });
+
     setIsLoading(true);
     try {
       const response = await fetch(endpoint, {
         method,
         headers: {
           'Content-Type': 'application/json',
+          'x-access-code': accessCode,
         },
-        body: body ? JSON.stringify(body) : undefined,
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('📥 API Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
       });
 
       const data = await response.json();
+      console.log('📋 Response Data:', data);
 
       if (!response.ok) {
-        throw new Error(data.error || 'API request failed');
+        throw new Error(data?.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 
       return data;
     } catch (error) {
-      console.error('API call failed:', error);
+      console.error('❌ API call failed:', error);
+      
+      // Handle different types of errors
+      let errorMessage = 'Unknown error occurred';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       toast({
         title: 'Error',
-        description:
-          error instanceof Error ? error.message : 'Unknown error occurred',
+        description: errorMessage,
         variant: 'destructive',
       });
       throw error;
@@ -50,8 +84,58 @@ export const useTimerControls = ({ timerState, isConnected }: UseTimerControlsPr
     }
   };
 
+  // Test API connection
+  const testConnection = async () => {
+    try {
+      console.log('🔍 Testing API connection...');
+      const testUrl = getApiUrl('/api/timer/active');
+      console.log('🎯 Test URL:', testUrl);
+      
+      const response = await fetch(testUrl);
+      console.log('📡 Test Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ API is reachable:', data);
+        return true;
+      } else {
+        console.log('❌ API returned error status:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ API connection test failed:', error);
+      return false;
+    }
+  };
+
   // Timer control functions
   const startTimer = async (inputDuration: string) => {
+    console.log('🎯 StartTimer called:', { inputDuration, accessCode });
+
+    // Test connection first
+    const connectionOk = await testConnection();
+    if (!connectionOk) {
+      toast({
+        title: 'Connection Error',
+        description: 'Cannot connect to the server. Please check if the backend is running.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!accessCode) {
+      toast({
+        title: 'Access Code Required',
+        description: 'Please enter an access code first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const validation = validateDuration(inputDuration);
     if (!validation.isValid) {
       toast({
@@ -64,21 +148,34 @@ export const useTimerControls = ({ timerState, isConnected }: UseTimerControlsPr
 
     // Round to 1 second precision on client side for user feedback
     const roundedDuration = Math.round(validation.value!);
+    console.log('✅ Duration validated and rounded:', roundedDuration);
 
     try {
-      await apiCall(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.START), 'POST', { 
+      const result = await apiCall(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.START), 'POST', { 
         duration: roundedDuration 
       });
+      console.log('🎉 Timer started successfully:', result);
+      
       toast({
         title: 'Timer Started',
         description: `Timer started for ${roundedDuration} seconds (1s precision)`,
       });
     } catch (error) {
+      console.error('❌ Failed to start timer:', error);
       // Error already handled in apiCall
     }
   };
 
   const stopTimer = async () => {
+    if (!accessCode) {
+      toast({
+        title: 'Access Code Required',
+        description: 'Please enter an access code first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       await apiCall(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.STOP), 'POST');
       toast({
@@ -91,6 +188,15 @@ export const useTimerControls = ({ timerState, isConnected }: UseTimerControlsPr
   };
 
   const pauseTimer = async () => {
+    if (!accessCode) {
+      toast({
+        title: 'Access Code Required',
+        description: 'Please enter an access code first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       await apiCall(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.PAUSE), 'POST');
       toast({
@@ -103,6 +209,15 @@ export const useTimerControls = ({ timerState, isConnected }: UseTimerControlsPr
   };
 
   const continueTimer = async () => {
+    if (!accessCode) {
+      toast({
+        title: 'Access Code Required',
+        description: 'Please enter an access code first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       await apiCall(getApiUrl(API_CONFIG.ENDPOINTS.TIMER.CONTINUE), 'POST');
       toast({
@@ -115,6 +230,15 @@ export const useTimerControls = ({ timerState, isConnected }: UseTimerControlsPr
   };
 
   const setElapsedTime = async (inputElapsedTime: string) => {
+    if (!accessCode) {
+      toast({
+        title: 'Access Code Required',
+        description: 'Please enter an access code first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const validation = validateElapsedTime(inputElapsedTime);
     if (!validation.isValid) {
       toast({

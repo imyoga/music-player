@@ -9,12 +9,14 @@ interface StatusCardsProps {
   isConnected: boolean;
   lastSyncTime: number;
   timerState: TimerState;
+  accessCode: string;
 }
 
 export const StatusCards: React.FC<StatusCardsProps> = ({
   isConnected,
   lastSyncTime,
   timerState,
+  accessCode,
 }) => {
   const getConnectionStatus = () => {
     if (isConnected) {
@@ -44,6 +46,10 @@ export const StatusCards: React.FC<StatusCardsProps> = ({
             Connection Status
           </h3>
           <div className='grid grid-cols-1 gap-3 text-xs text-purple-200'>
+            <div className='flex items-center justify-between p-2 bg-white/5 rounded'>
+              <span className='font-medium'>Access Code:</span>
+              <span className='font-mono text-blue-300'>{accessCode}</span>
+            </div>
             <div className='flex items-center justify-between p-2 bg-white/5 rounded'>
               <span className='font-medium'>Connection Type:</span>
               <div className='flex items-center gap-2'>
@@ -85,7 +91,7 @@ export const StatusCards: React.FC<StatusCardsProps> = ({
           <div className='grid grid-cols-2 gap-3 text-xs text-purple-200'>
             <div>
               <span className='font-medium'>Timer ID:</span>
-              <div className='font-mono'>{timerState.id || 'None'}</div>
+              <div className='font-mono'>{timerState.id ? timerState.id.slice(0, 8) + '...' : 'None'}</div>
             </div>
             <div>
               <span className='font-medium'>State:</span>
@@ -127,8 +133,7 @@ export const StatusCards: React.FC<StatusCardsProps> = ({
           </h3>
           <div className='text-xs text-purple-200 space-y-2'>
             <p>
-              🎵 This player is synchronized with the master timer. All
-              playback is controlled by the timer dashboard.
+              🎵 This player is synchronized with the master timer using access code <span className='font-mono text-blue-300'>{accessCode}</span>.
             </p>
             <p>
               ⚡ The player receives real-time updates via Server-Sent Events
