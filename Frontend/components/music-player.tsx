@@ -33,9 +33,19 @@ export default function MusicPlayer() {
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    if (file.type.startsWith('audio/')) {
+    
+    // Check for audio files and audio-friendly video formats
+    const isAudioFile = file.type.startsWith('audio/') || 
+                       file.type.startsWith('video/') ||
+                       file.name.match(/\.(mp3|wav|ogg|m4a|aac|flac|wma|opus|webm|3gp|3g2|amr|awb|mp4|mov|avi|mkv|ogv|m4v)$/i);
+    
+    if (isAudioFile) {
       const newTrack = createTrackFromFile(file);
       setTracks([newTrack]);
+    } else {
+      // Show error message for unsupported files
+      console.error('Unsupported file format. Please select an audio file.');
+      // You might want to show a toast notification here
     }
   };
 

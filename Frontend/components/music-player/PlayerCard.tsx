@@ -36,7 +36,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
             <input
               ref={fileInputRef}
               type='file'
-              accept='audio/*'
+              accept='audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac,.wma,.opus,.webm,.3gp,.3g2,.amr,.awb,.mp4,.mov,.avi,.mkv,.webm,.ogv,.m4v'
               onChange={onFileSelect}
               className='hidden'
             />
@@ -49,7 +49,7 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
               Select Audio File
             </Button>
             <p className='text-sm text-purple-200 mt-2'>
-              Upload an audio file to sync with the master timer
+              Upload an audio file (MP3, WAV, M4A, AAC, FLAC, OGG, etc.) to sync with the master timer
             </p>
           </div>
 
