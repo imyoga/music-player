@@ -1,18 +1,19 @@
 // API Configuration
 export const API_CONFIG = {
-	// Backend API base URL - only for development, empty for production
-	BASE_URL: process.env.NODE_ENV === 'development' ? 'http://localhost:45001' : 'https://ym-apps.live/home-sync-radio',
+	// Backend API base URL - empty since we're using Next.js proxy for development
+	BASE_URL: '',
 
-	// API endpoints
+	// API endpoints - clean without any prefixes
 	ENDPOINTS: {
 		TIMER: {
-			START: '/api/timer/start',
-			STOP: '/api/timer/stop',
-			PAUSE: '/api/timer/pause',
-			CONTINUE: '/api/timer/continue',
-			SET_ELAPSED: '/api/timer/set-elapsed',
-			STATUS: '/api/timer/status',
-			STREAM: '/api/timer/stream'
+			START: '/api/start',
+			STOP: '/api/stop',
+			PAUSE: '/api/pause',
+			CONTINUE: '/api/continue',
+			SET_ELAPSED: '/api/set-elapsed',
+			STATUS: '/api/status',
+			STREAM: '/api/stream',
+			ACTIVE: '/api/active'
 		}
 	}
 }

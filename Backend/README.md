@@ -38,13 +38,13 @@ Backend/
 ## 📡 API Endpoints
 
 ### Timer Operations
-- `POST /api/timer/start` - Start a new timer
-- `POST /api/timer/stop` - Stop the current timer
-- `POST /api/timer/pause` - Pause the timer
-- `POST /api/timer/continue` - Resume a paused timer
-- `POST /api/timer/set-elapsed` - Adjust timer by setting elapsed time
-- `GET /api/timer/status` - Get current timer status
-- `GET /api/timer/stream` - Real-time timer updates (SSE)
+- `POST /api/start` - Start a new timer
+- `POST /api/stop` - Stop the current timer
+- `POST /api/pause` - Pause the timer
+- `POST /api/continue` - Resume a paused timer
+- `POST /api/set-elapsed` - Adjust timer by setting elapsed time
+- `GET /api/status` - Get current timer status
+- `GET /api/stream` - Real-time timer updates (SSE)
 
 ### System
 - `GET /api/health` - Health check endpoint

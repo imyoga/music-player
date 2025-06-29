@@ -43,10 +43,10 @@ app.get('/test', (req, res) => {
   });
 });
 
-// API routes
+// API routes - clean without /timer prefix
 app.use('/api', apiRoutes);
 
-// Serve React app for client-side routing
+// Serve React app for specific routes
 app.get('/timer', (req, res) => {
   res.sendFile(path.join(__dirname, config.paths.public, config.paths.frontend.index));
 });
@@ -61,7 +61,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// Express 5.x compatible catch-all - using middleware instead of route pattern
+// Catch-all for client-side routing
 app.use((req, res, next) => {
   // Only handle GET requests that haven't been handled yet
   if (req.method === 'GET') {
@@ -122,15 +122,19 @@ server.on('listening', () => {
   console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
   console.log(`🌐 Timer API Server is running on port ${config.server.port}`);
   console.log(`🎵 Timer with ${config.timer.precision/1000} second accuracy for smooth music sync`);
-  console.log(`\n📡 Available endpoints:`);
-  console.log(`   POST /api/timer/start       - Start a new timer`);
-  console.log(`   POST /api/timer/stop        - Stop the timer`);
-  console.log(`   POST /api/timer/pause       - Pause the timer`);
-  console.log(`   POST /api/timer/continue    - Resume the timer`);
-  console.log(`   POST /api/timer/set-elapsed - Set elapsed time (adjust remaining time)`);
-  console.log(`   GET  /api/timer/status      - Get timer status`);
-  console.log(`   GET  /api/timer/stream      - Real-time timer updates (SSE)`);
-  console.log(`   GET  /api/health            - Health check`);
+  console.log(`\n📡 Available routes:`);
+  console.log(`   GET  /                    - API info & health check`);
+  console.log(`   GET  /timer              - Timer app frontend`);
+  console.log(`\n📡 API endpoints:`);
+  console.log(`   POST /api/start          - Start a new timer`);
+  console.log(`   POST /api/stop           - Stop the timer`);
+  console.log(`   POST /api/pause          - Pause the timer`);
+  console.log(`   POST /api/continue       - Resume the timer`);
+  console.log(`   POST /api/set-elapsed    - Set elapsed time (adjust remaining time)`);
+  console.log(`   GET  /api/status         - Get timer status`);
+  console.log(`   GET  /api/stream         - Real-time timer updates (SSE)`);
+  console.log(`   GET  /api/active         - Get active timers (debug/admin)`);
+  console.log(`   GET  /api/health         - Health check`);
   console.log(`\n✅ Server ready to accept connections!\n`);
 });
 

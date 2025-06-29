@@ -11,7 +11,7 @@ const nextConfig = {
   },
   // Static export for production builds only
   output: 'export',
-  trailingSlash: true,
+  trailingSlash: false, // Fixed: trailingSlash breaks SSE streams with redirects
   
   // Production build goes to Backend/public, development stays in Frontend/.next
   distDir: process.env.NODE_ENV === 'production' ? '../Backend/public' : '.next',
@@ -19,11 +19,42 @@ const nextConfig = {
   // Ensure clean production builds
   cleanDistDir: true,
   
-  // Set basePath and assetPrefix only for production
-  ...(process.env.NODE_ENV === 'production' && {
-    basePath: '/home-sync-radio',
-    assetPrefix: '/home-sync-radio',
-  }),
+  // No basePath or assetPrefix needed for subdomain-based routing
+  
+  // Proxy API calls to backend during development
+  async rewrites() {
+    if (process.env.NODE_ENV === 'development') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: 'http://localhost:45001/api/:path*',
+        },
+      ];
+    }
+    return [];
+  },
+
+  // Headers for better SSE support
+  async headers() {
+    if (process.env.NODE_ENV === 'development') {
+      return [
+        {
+          source: '/api/stream/:path*',
+          headers: [
+            {
+              key: 'Cache-Control',
+              value: 'no-cache, no-store, must-revalidate',
+            },
+            {
+              key: 'Connection',
+              value: 'keep-alive',
+            },
+          ],
+        },
+      ];
+    }
+    return [];
+  },
 };
 
 export default nextConfig;
